@@ -1,0 +1,2 @@
+# Install for the same restricted service account used by PHP and the worker.
+* * * * * cd /var/www/jobflow && /usr/bin/php scripts/schedule.php >> storage/logs/scheduler.log 2>&1

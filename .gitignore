@@ -1,0 +1,16 @@
+/.env
+/vendor/
+/node_modules/
+/storage/private/*
+/storage/logs/*
+/storage/sessions/*
+!/storage/**/.gitkeep
+/tests/.runtime/
+*.log
+
+/storage/worker-heartbeat
+/.env.*
+!/.env.example
+/.agents/
+/.codex/
+/.aws/

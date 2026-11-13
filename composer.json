@@ -1,0 +1,33 @@
+{
+    "name": "jobflow/jobflow",
+    "description": "A private, Kenya-focused job search and application workspace.",
+    "type": "project",
+    "require": {
+        "php": "^8.2",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-curl": "*",
+        "ext-fileinfo": "*",
+        "ext-mbstring": "*",
+        "ext-sodium": "*",
+        "ext-dom": "*",
+        "ext-zip": "*",
+        "dompdf/dompdf": "^3.1",
+        "smalot/pdfparser": "^2.12"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "App/"
+        },
+        "files": [
+            "App/Helpers.php"
+        ]
+    },
+    "scripts": {
+        "test": "php tests/run.php",
+        "lint": "find App Bootstrap Routes Resources/Views Public scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

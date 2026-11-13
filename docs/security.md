@@ -1,0 +1,17 @@
+# Security model
+
+- No public registration. Initial account creation is a CLI operation; passwords use PHP's password API.
+- CSRF covers sign-in and all mutations. Session IDs regenerate on authentication, cookies are HTTP-only/SameSite=Lax, and secure cookies are enabled by default. Behind a TLS-terminating proxy, keep the public origin HTTPS and `SESSION_SECURE=true`; forwarded client-IP headers are not trusted for throttling.
+- Authentication uses database-backed active sessions and bounded inactivity. Remember tokens use random selectors, hashed validators, one-time consumption and rotation. Password changes revoke other sessions and remembered sign-ins.
+- PDO uses native prepared statements. Ownership is checked for jobs, documents, applications, tasks, messages, providers and sources. Future multi-user routes must retain these checks.
+- Sodium secretbox encrypts API keys and OAuth credentials using a unique environment key. Keys/tokens never appear in frontend HTML or JSON. Error logging excludes request bodies, external response bodies, credentials and exception messages that might include secrets.
+- Uploads have request/MIME/size restrictions. Private filenames are random; path traversal is rejected. DOCX archives have file-count/expanded-size limits and disallow active content/DTDs/entities. No shell extraction is used. Original uploaded PDFs can contain arbitrary content: preview them with a current browser/PDF reader. Malware scanning is not bundled.
+- Outbound HTTP allows public HTTPS on port 443 only, rejects private/reserved/shared/benchmark/documentation address ranges and embedded URL credentials, validates every resolved address, pins the chosen address, verifies TLS and refuses redirects. Deploy an outbound firewall as an additional network boundary.
+- Robots directives are checked conservatively. Permission confirmation is required for sources and URL imports; it is not a substitute for source terms or authorisation. No login/CAPTCHA/anti-bot bypass is implemented.
+- Untrusted advertisements/images/CV text are data in AI prompts. AI has no tools. JSON schemas, factual entry-index checks, verification gates and review keep model output from directly sending applications or inventing structured history. A model's prose is not independently proven factual: users must verify it.
+- Budgets reserve estimated cost before requests under a user lock. Provider prices and vision reservations are supplied by the user; actual provider billing is external.
+- API writes and expensive operations have account limits, and sign-in has an IP limit. Schedule pruning removes expired throttle/remember rows. There is no reverse-proxy trust assumption.
+- Application sends require an approved verified package, known recipient, unexpired vacancy, enabled mode/method, daily capacity and a connected Gmail account. Automatic mode additionally requires eligibility and the configured score. All writes precede the external send reservation. Ambiguous sends are held, never automatically replayed.
+- Serve only `Public/`, disable directory indexes, restrict `.env` permissions and back up the database/private files/encryption key together. Do not place production secrets in deployment examples or source archives.
+
+This is a production-conscious baseline, not an independent penetration-test certification. Add deployment-specific monitoring, backups, retention, malware scanning and authentication controls according to your environment.
