@@ -8,11 +8,11 @@
         <?php if (
     $active === 'discover'
 ): ?>
-        <button class="btn" data-action="/api/automation/search" data-loading="Queuing discovery…">
+        <button class="btn" data-action="<?= e(app_base_path()); ?>/api/automation/search" data-loading="Queuing discovery…">
             <?= icon('refresh-cw'); ?>Search now
         </button>
         <?php endif; ?>
-        <a class="btn btn-primary" href="/jobs/add"><?= icon('plus'); ?>Add job</a>
+        <a class="btn btn-primary" href="<?= e(app_base_path()); ?>/jobs/add"><?= icon('plus'); ?>Add job</a>
     </div>
 </div>
 <?php if (
@@ -25,7 +25,7 @@
         <strong>Choose where your opportunities come from.</strong>
         <p>
             Connect and test a permitted RSS feed or public JSON API to enable discovery.
-            <a class="text-link" href="/settings?tab=discovery">Set up sources <?= icon('arrow-right'); ?></a>
+            <a class="text-link" href="<?= e(app_base_path()); ?>/settings?tab=discovery">Set up sources <?= icon('arrow-right'); ?></a>
         </p>
     </div>
 </div>
@@ -89,7 +89,7 @@
             ): ?>
                     <tr>
                         <td>
-                            <a href="/jobs/<?= e($job['id']); ?>">
+                            <a href="<?= e(app_base_path()); ?>/jobs/<?= e($job['id']); ?>">
                                 <strong><?= e($job['title']); ?></strong>
                                 <div class="muted text-[11px]"><?= e($job['employer']); ?></div>
                             </a>

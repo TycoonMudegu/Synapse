@@ -1,4 +1,4 @@
-import { request, toast } from './api.js';
+import { appUrl, request, toast } from './api.js';
 
 let polling = false;
 
@@ -19,7 +19,7 @@ export async function trackTask(id) {
     let count = 0;
     const check = async () => {
         try {
-            const result = await request(`/api/tasks/${id}`, { method: 'GET' });
+            const result = await request(appUrl(`/api/tasks/${id}`), { method: 'GET' });
             const task = result.data;
             if (task.status === 'completed') {
                 sessionStorage.removeItem('jobflow-task');

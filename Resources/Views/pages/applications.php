@@ -4,7 +4,7 @@
         <h1>Applications</h1>
         <p>From a thoughtful draft to a new beginning. Keep the whole journey in view.</p>
     </div>
-    <a class="btn btn-primary" href="/jobs"><?= icon('briefcase-business'); ?>Choose an opportunity</a>
+    <a class="btn btn-primary" href="<?= e(app_base_path()); ?>/jobs"><?= icon('briefcase-business'); ?>Choose an opportunity</a>
 </div>
 <section class="panel">
     <div class="toolbar">
@@ -61,7 +61,7 @@ else:
 ): ?>
                     <tr>
                         <td>
-                            <a href="/applications/<?= e($application['id']); ?>">
+                            <a href="<?= e(app_base_path()); ?>/applications/<?= e($application['id']); ?>">
                                 <strong><?= e($application['title']); ?></strong>
                                 <div class="text-[11px] mt-1"><?= e($application['employer']); ?></div>
                             </a>

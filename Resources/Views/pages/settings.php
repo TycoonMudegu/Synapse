@@ -19,7 +19,7 @@
     ]
     as $key => $name
 ): ?>
-    <a class="<?= $tab === $key ? 'active' : ''; ?>" href="/settings?tab=<?= e($key); ?>" <?= $tab === $key ? 'aria-current="page"' : ''; ?>>
+    <a class="<?= $tab === $key ? 'active' : ''; ?>" href="<?= e(app_base_path()); ?>/settings?tab=<?= e($key); ?>" <?= $tab === $key ? 'aria-current="page"' : ''; ?>>
         <?= e($name); ?>
     </a>
     <?php endforeach; ?>

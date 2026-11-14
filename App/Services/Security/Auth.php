@@ -101,7 +101,7 @@ final class Auth
     {
         setcookie('jobflow_remember', $value, [
             'expires' => $expires,
-            'path' => '/',
+            'path' => \App\Core\Url::basePath() . '/',
             'secure' => Env::bool('SESSION_SECURE', true),
             'httponly' => true,
             'samesite' => 'Lax',

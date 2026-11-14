@@ -26,7 +26,7 @@
             <strong>British English</strong>
         </div>
         <div class="form-actions">
-            <a href="/profile" class="btn btn-primary">
+            <a href="<?= e(app_base_path()); ?>/profile" class="btn btn-primary">
                 <?= icon('contact-round'); ?>Edit career profile & preferences
             </a>
         </div>

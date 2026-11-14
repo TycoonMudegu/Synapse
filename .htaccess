@@ -1,0 +1,17 @@
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+
+RewriteEngine On
+
+# The root entry point delegates to the existing public front controller.
+RewriteRule ^(?:index\.php)?$ - [L]
+
+# Only compiled public assets may be served directly from the project folder.
+RewriteRule ^Assets/(.+\.(?:css|js|svg|woff2|txt))$ Public/Assets/$1 [END,NC]
+
+# Keep source code, configuration, uploads and dependencies off the web.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [F,L]
+
+RewriteRule ^ index.php [END]

@@ -2,7 +2,7 @@
     <div class="eyebrow">YOUR PERSONAL CAREER WORKSPACE</div>
     <h1>Welcome back.</h1>
     <p>A fresh start, and your next opportunity. Sign in to keep things moving.</p>
-    <form action="/login" method="post" data-async class="form-stack">
+    <form action="<?= e(app_base_path()); ?>/login" method="post" data-async class="form-stack">
         <div class="form-error" role="alert" hidden></div>
         <div class="field">
             <label for="email">Email address</label>

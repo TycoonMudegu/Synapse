@@ -2,10 +2,12 @@
 
 Tests use synthetic fixtures only in a database ending in `_test`. No job, profile, document or submission fixture is seeded into the application database. External side effects are not performed by automated tests.
 
-Current result: **63 PHP checks and 20 Chromium checks passed**, together with the asset build and PHP syntax checks.
+Current result: **84 PHP checks passed** (63 application checks and 21 installation-URL checks), together with the asset build and PHP syntax checks. The **20 Chromium checks pass in both modes**: the PHP development server at a root URL and an isolated Apache/mod_php installation under `/autoaplicator/`.
 
 ## Automated checks
 
+- Apache serves the project root through its front controller, loads prefixed assets/fonts, denies private/source paths and returns standard HTTP 403 for rejected CSRF tokens.
+- Root, subfolder and nested installation URLs, request-route normalisation, external OAuth URLs and API prefixes.
 - PHP syntax across controllers, services, repositories, bootstrap, routes, views and scripts.
 - Full Tailwind CLI / esbuild build and locally bundled font copying.
 - Secretbox round trip, random nonces and tamper detection.

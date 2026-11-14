@@ -4,16 +4,17 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content="<?= e(\App\Services\Security\Csrf::token()); ?>" />
+        <meta name="app-base-path" content="<?= e(app_base_path()); ?>" />
         <meta name="theme-color" content="#326080" />
         <title><?= e($title ?? 'Welcome'); ?> · JobFlow</title>
-        <link rel="icon" href="/Assets/favicon.svg" type="image/svg+xml" />
-        <link rel="stylesheet" href="/Assets/app.css" />
-        <script type="module" src="/Assets/app.js"></script>
+        <link rel="icon" href="<?= e(app_base_path()); ?>/Assets/favicon.svg" type="image/svg+xml" />
+        <link rel="stylesheet" href="<?= e(app_base_path()); ?>/Assets/app.css" />
+        <script type="module" src="<?= e(app_base_path()); ?>/Assets/app.js"></script>
     </head>
     <body class="auth-body">
         <div class="auth-layout">
             <aside class="auth-story">
-                <a href="/" class="brand">
+                <a href="<?= e(app_base_path()); ?>/" class="brand">
                     <span class="brand-mark"><?= icon('arrow-up-right'); ?></span>
                     JobFlow
                     <span>.</span>

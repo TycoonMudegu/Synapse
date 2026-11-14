@@ -1,5 +1,10 @@
 Options -Indexes
 DirectoryIndex index.php
 RewriteEngine On
+
+# Internal asset rewrites are allowed; direct access uses the project entry point.
+RewriteCond %{THE_REQUEST} "\s/+[^?\s]*/Public(?:[/\s?])" [NC]
+RewriteRule ^ - [F,END]
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [QSA,L]

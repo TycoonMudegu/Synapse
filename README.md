@@ -44,11 +44,19 @@ npm run dev
 
 The administrator command prompts for your name, email and password. Password entry is hidden in an interactive terminal. It refuses to create another account after the initial administrator exists. Open **http://127.0.0.1:8080** and sign in. Set your career profile up before using AI analysis.
 
-Ensure that `storage/private`, `storage/sessions` and `storage/logs` are writable by the PHP/worker service account. Serve **only `Public/`** as the web root. Original uploads and generated documents are stored privately, never in `Public/`.
+Ensure that `storage/private`, `storage/sessions` and `storage/logs` are writable by the PHP/worker service account. For a dedicated production virtual host, serve **`Public/`** as the web root. Apache subfolder installations can use the root entry point and `.htaccess` as described below. Original uploads and generated documents are stored privately, never in `Public/`.
+
+### Open directly through Apache
+
+If Apache already serves the parent folder, open **http://localhost/autoaplicator/**. The root `index.php` forwards to the existing application, and `.htaccess` routes requests and serves only compiled assets. Source code, configuration, dependencies and private storage are denied direct HTTP access. Links, API redirects, forms, cookies and fonts respect the detected installation path, including nested subfolders.
+
+Apache 2.4 needs `mod_rewrite` and permission to use the checked-in `.htaccess` files (`AllowOverride All` for this local project directory). Set `APP_URL=http://localhost/autoaplicator` and `SESSION_SECURE=false` for this local HTTP URL. Use the same path in the registered Gmail callback if connecting Gmail here.
+
+The Apache service account must be able to read `.env` and write the private storage directories. Keep credentials private; grant access to the service account rather than making them world-readable. See [docs/deployment.md](docs/deployment.md#apache-subfolder-development) for permissions and worker setup.
 
 ### This workspace
 
-Dependencies and compiled assets are already installed here. A gitignored `.env` has been generated with a unique encryption key, local-only cookie settings and a dedicated account on an isolated MariaDB instance at `/tmp/jobflow-mysql.sock`. The application database is `jobflow`; automated fixtures use `jobflow_test`. **No administrator has been created in the application database.** Run `php scripts/create-admin.php` to choose your credentials.
+Dependencies and compiled assets are already installed here. A gitignored `.env` has been generated with a unique encryption key, local-only cookie settings and a dedicated account on an isolated MariaDB instance with its private socket at `storage/run/mysql.sock`. The application database is `jobflow`; automated fixtures use `jobflow_test`. **No administrator has been created in the application database.** Run `php scripts/create-admin.php` to choose your credentials.
 
 The `/tmp` database is a development/test instance, not durable production hosting. If it is no longer running, configure your own MySQL/MariaDB service using the installation instructions above. Nothing has been deployed to an external host.
 
@@ -124,6 +132,7 @@ AI budgets are conservative reservations using **your entered token prices**, no
 composer lint
 composer test
 php tests/run.php --unit
+php tests/urls.php
 npm run build
 npm run test:browser
 ```

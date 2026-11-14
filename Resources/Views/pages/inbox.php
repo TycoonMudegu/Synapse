@@ -9,11 +9,11 @@
     $connection
 ): ?>
         <span class="text-xs muted">Last sync: <?= $connection['last_sync_at'] ? e(date('d M, H:i', strtotime($connection['last_sync_at']))) . ' EAT' : 'Never'; ?></span>
-        <button class="btn" data-action="/api/gmail/sync" data-loading="Queuing synchronisation…">
+        <button class="btn" data-action="<?= e(app_base_path()); ?>/api/gmail/sync" data-loading="Queuing synchronisation…">
             <?= icon('refresh-cw'); ?>Synchronise
         </button>
         <?php else: ?>
-        <a class="btn btn-primary" href="/settings?tab=gmail"><?= icon('mail'); ?>Connect Gmail</a>
+        <a class="btn btn-primary" href="<?= e(app_base_path()); ?>/settings?tab=gmail"><?= icon('mail'); ?>Connect Gmail</a>
         <?php endif; ?>
     </div>
 </div>
@@ -64,7 +64,7 @@ else:
     $messages
     as $item
 ): ?>
-            <a class="message-link" href="/inbox?message=<?= e($item['id']); ?>">
+            <a class="message-link" href="<?= e(app_base_path()); ?>/inbox?message=<?= e($item['id']); ?>">
                 <span class="badge <?= $item['message_type'] === 'interview_needs_review' ? 'badge-warm' : ''; ?>"><?= e(label($item['message_type'])); ?></span>
                 <h3 class="mt-2"><?= e($item['subject']); ?><?= $item['has_attachments'] ? icon('paperclip', 'inline w-3 h-3') : ''; ?></h3>
                 <p><?= e(mb_substr($item['snippet'], 0, 95)); ?></p>
@@ -82,7 +82,7 @@ else:
             <?php if (
      $message['application_id']
  ): ?>
-            <a class="text-link mb-5" href="/applications/<?= e($message['application_id']); ?>">
+            <a class="text-link mb-5" href="<?= e(app_base_path()); ?>/applications/<?= e($message['application_id']); ?>">
                 Related application<?= icon('arrow-up-right'); ?>
             </a>
             <?php endif; ?>

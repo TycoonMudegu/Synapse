@@ -10,13 +10,16 @@ final class Response
     {
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
+        if (isset($data['redirect']) && is_string($data['redirect'])) {
+            $data['redirect'] = \App\Core\Url::to($data['redirect']);
+        }
         echo json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
         exit();
     }
 
     public static function redirect(string $path): never
     {
-        header('Location: ' . $path, true, 303);
+        header('Location: ' . \App\Core\Url::to($path), true, 303);
         exit();
     }
 }

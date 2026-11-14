@@ -22,7 +22,7 @@
         <article class="activity-row <?= !$notification[ 'read_at' ] ? 'unread' : ''; ?>">
             <?= icon($notification['type'] === 'error' ? 'circle-alert' : 'bell', 'text-[#8da9b9]'); ?>
             <div class="flex-1">
-                <h3><a href="<?= e($notification['href']); ?>"><?= e($notification['title']); ?></a></h3>
+                <h3><a href="<?= e(app_url($notification['href'])); ?>"><?= e($notification['title']); ?></a></h3>
                 <p><?= e($notification['body']); ?></p>
                 <small><?= e(date('d M Y, H:i', strtotime($notification['created_at']))); ?> EAT</small>
             </div>
@@ -31,7 +31,7 @@
  ): ?>
             <button
                 class="icon-button"
-                data-action="/api/notifications/<?= e($notification['id']); ?>/read"
+                data-action="<?= e(app_base_path()); ?>/api/notifications/<?= e($notification['id']); ?>/read"
                 aria-label="Mark notification as read"
             >
                 <?= icon('check'); ?>

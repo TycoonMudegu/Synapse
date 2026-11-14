@@ -1,4 +1,4 @@
-import { request, toast, withLoading } from './api.js';
+import { appUrl, request, toast, withLoading } from './api.js';
 
 let recordSequence = Date.now();
 
@@ -34,7 +34,7 @@ export function initialiseProfile() {
             await withLoading(button, async () => {
                 try {
                     const result = await request(
-                        `/api/documents/${button.dataset.profileImport}/profile`,
+                        appUrl(`/api/documents/${button.dataset.profileImport}/profile`),
                         { data: {} },
                     );
                     const form = document.querySelector('#profile-form');

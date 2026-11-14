@@ -61,6 +61,6 @@ final class Request
 
     public function path(): string
     {
-        return parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+        return \App\Core\Url::routePath($_SERVER['REQUEST_URI'] ?? '/');
     }
 }

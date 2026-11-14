@@ -10,7 +10,7 @@
 </div>
 <section class="panel">
     <div class="panel-header"><h2>Application automation</h2></div>
-    <form action="/api/settings" data-async class="panel-body form-stack">
+    <form action="<?= e(app_base_path()); ?>/api/settings" data-async class="panel-body form-stack">
         <input type="hidden" name="section" value="automation" />
         <div class="form-error" hidden role="alert"></div>
         <div class="field">

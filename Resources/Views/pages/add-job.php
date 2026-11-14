@@ -4,7 +4,7 @@
         <h1><?= isset($editingJob) ? 'Edit opportunity' : 'Add an opportunity'; ?></h1>
         <p>A link, a poster, a few notes. Give your next possibility a place to grow.</p>
     </div>
-    <a class="btn" href="/jobs"><?= icon('arrow-left'); ?>My jobs</a>
+    <a class="btn" href="<?= e(app_base_path()); ?>/jobs"><?= icon('arrow-left'); ?>My jobs</a>
 </div>
 <div class="import-tabs" role="tablist" aria-label="Add job method">
     <?php foreach (
@@ -134,7 +134,7 @@
             <p>Keep unknown facts blank. You can analyse the job after saving it.</p>
         </div>
     </div>
-    <form action="<?= isset($editingJob) ? '/api/jobs/' . $editingJob['id'] : '/api/jobs'; ?>" method="post" class="panel-body" data-async id="job-details-form">
+    <form action="<?= e(app_url(isset($editingJob) ? '/api/jobs/' . $editingJob['id'] : '/api/jobs')); ?>" method="post" class="panel-body" data-async id="job-details-form">
         <div class="form-error" hidden role="alert"></div>
         <input type="hidden" name="poster_document_id" value="" />
         <div class="form-grid">
@@ -302,7 +302,7 @@
             </label>
         </div>
         <div class="form-actions">
-            <a class="btn" href="/jobs">Cancel</a>
+            <a class="btn" href="<?= e(app_base_path()); ?>/jobs">Cancel</a>
             <button class="btn btn-primary" type="submit" data-loading="Saving your opportunity…">
                 <?= icon('bookmark'); ?>Save opportunity
             </button>

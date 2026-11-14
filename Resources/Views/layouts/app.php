@@ -16,11 +16,12 @@ $navigation = [
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content="<?= e(\App\Services\Security\Csrf::token()); ?>" />
+        <meta name="app-base-path" content="<?= e(app_base_path()); ?>" />
         <meta name="theme-color" content="#326080" />
         <title><?= e($title ?? 'Workspace'); ?> · JobFlow</title>
-        <link rel="icon" href="/Assets/favicon.svg" type="image/svg+xml" />
-        <link rel="stylesheet" href="/Assets/app.css" />
-        <script type="module" src="/Assets/app.js"></script>
+        <link rel="icon" href="<?= e(app_base_path()); ?>/Assets/favicon.svg" type="image/svg+xml" />
+        <link rel="stylesheet" href="<?= e(app_base_path()); ?>/Assets/app.css" />
+        <script type="module" src="<?= e(app_base_path()); ?>/Assets/app.js"></script>
     </head>
     <body>
         <a class="sr-only focus:not-sr-only" href="#main-content">Skip to content</a>
@@ -31,7 +32,7 @@ $navigation = [
             hidden
         ></button>
         <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-            <a class="brand" href="/">
+            <a class="brand" href="<?= e(app_base_path()); ?>/">
                 <span class="brand-mark"><?= icon('arrow-up-right'); ?></span>
                 JobFlow
                 <span>.</span>
@@ -40,7 +41,7 @@ $navigation = [
             <p class="nav-label">YOUR WORKSPACE</p>
             <nav class="nav-list">
                 <?php foreach ($navigation as [$key, $href, $iconName, $name]): ?>
-                <a href="<?= e($href); ?>" class="nav-link <?= ($active ?? '') === $key ? 'active' : ''; ?>" <?= ($active ?? '') === $key ? 'aria-current="page"' : ''; ?>>
+                <a href="<?= e(app_url($href)); ?>" class="nav-link <?= ($active ?? '') === $key ? 'active' : ''; ?>" <?= ($active ?? '') === $key ? 'aria-current="page"' : ''; ?>>
                     <?= icon($iconName); ?>
                     <span><?= e($name); ?></span>
                 </a>
@@ -56,11 +57,11 @@ $navigation = [
                 </div>
                 <div class="sidebar-profile">
                     <div class="avatar"><?= e(initials($currentUser['name'])); ?></div>
-                    <a href="/settings">
+                    <a href="<?= e(app_base_path()); ?>/settings">
                         <div class="profile-name"><?= e($currentUser['name']); ?></div>
                         <div class="text-[10px] text-[#a28b76]">Personal workspace</div>
                     </a>
-                    <form action="/logout" method="post" class="ml-auto">
+                    <form action="<?= e(app_base_path()); ?>/logout" method="post" class="ml-auto">
                         <?= csrf_field(); ?>
                         <button class="icon-button" aria-label="Sign out" title="Sign out">
                             <?= icon('log-out'); ?>
@@ -88,10 +89,10 @@ $navigation = [
                 </div>
                 <div class="topbar-actions">
                     <span class="date-label"><?= icon('calendar-days', 'w-3.5 h-3.5'); ?><?= e(date('D, d M Y')); ?></span>
-                    <a href="/activity" class="icon-button" aria-label="View notifications">
+                    <a href="<?= e(app_base_path()); ?>/activity" class="icon-button" aria-label="View notifications">
                         <?= icon('bell'); ?>
                     </a>
-                    <a href="/profile" class="avatar" aria-label="Open your profile">
+                    <a href="<?= e(app_base_path()); ?>/profile" class="avatar" aria-label="Open your profile">
                         <?= e(initials($currentUser['name'])); ?>
                     </a>
                 </div>
@@ -114,7 +115,7 @@ $navigation = [
                 </button>
             </div>
             <form
-                action="/api/documents"
+                action="<?= e(app_base_path()); ?>/api/documents"
                 method="post"
                 enctype="multipart/form-data"
                 data-async

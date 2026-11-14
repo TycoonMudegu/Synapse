@@ -23,7 +23,7 @@ if (PHP_SAPI !== 'cli') {
     session_name('jobflow_session');
     session_set_cookie_params([
         'lifetime' => 0,
-        'path' => '/',
+        'path' => \App\Core\Url::basePath() . '/',
         'secure' => Env::bool('SESSION_SECURE', true),
         'httponly' => true,
         'samesite' => 'Lax',

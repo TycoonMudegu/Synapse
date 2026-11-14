@@ -9,6 +9,16 @@ function e(mixed $value): string
     return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function app_base_path(): string
+{
+    return \App\Core\Url::basePath();
+}
+
+function app_url(string $path = '/'): string
+{
+    return \App\Core\Url::to($path);
+}
+
 function csrf_field(): string
 {
     return '<input type="hidden" name="_csrf" value="' . e(Csrf::token()) . '">';

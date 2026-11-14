@@ -5,10 +5,10 @@
         <p>Let's find your next opportunity. Here's where things stand.</p>
     </div>
     <div class="heading-actions">
-        <button class="btn" data-action="/api/automation/search" data-loading="Queuing search…">
+        <button class="btn" data-action="<?= e(app_base_path()); ?>/api/automation/search" data-loading="Queuing search…">
             <?= icon('refresh-cw'); ?>Search jobs
         </button>
-        <a class="btn btn-primary" href="/jobs/add"><?= icon('plus'); ?>Add job</a>
+        <a class="btn btn-primary" href="<?= e(app_base_path()); ?>/jobs/add"><?= icon('plus'); ?>Add job</a>
     </div>
 </div>
 <div class="welcome-banner">
@@ -19,7 +19,7 @@
             A little more focus, a little less busywork. Bring your experience, and let's put it in
             front of the right people.
         </p>
-        <a class="text-link" href="<?= empty($profile['verified_at'] ) ? '/profile' : '/discover'; ?>"><?= empty($profile['verified_at']) ? 'Start with your career profile' : 'Explore your opportunities'; ?><?= icon('arrow-right'); ?></a>
+        <a class="text-link" href="<?= e(app_url(empty($profile['verified_at']) ? '/profile' : '/discover')); ?>"><?= empty($profile['verified_at']) ? 'Start with your career profile' : 'Explore your opportunities'; ?><?= icon('arrow-right'); ?></a>
     </div>
     <div class="orbit" aria-hidden="true"></div>
     <div class="banner-symbol" aria-hidden="true">
@@ -79,7 +79,7 @@
                     <h2>Recent matches</h2>
                     <p>A few possibilities worth a closer look.</p>
                 </div>
-                <a class="text-link" href="/jobs">View all<?= icon('arrow-up-right'); ?></a>
+                <a class="text-link" href="<?= e(app_base_path()); ?>/jobs">View all<?= icon('arrow-up-right'); ?></a>
             </div>
             <?php if ($jobs === []): ?> <?php empty_state(
                     'compass',
@@ -88,7 +88,7 @@
                     '/jobs/add',
                     'Add your first job',
                 ); ?> <?php else:foreach ($jobs as $job): ?>
-            <a class="job-row" href="/jobs/<?= e($job['id']); ?>">
+            <a class="job-row" href="<?= e(app_base_path()); ?>/jobs/<?= e($job['id']); ?>">
                 <span class="company-avatar"><?= e(initials($job['employer'])); ?></span>
                 <div class="min-w-0">
                     <h3><?= e($job['title']); ?></h3>
@@ -111,14 +111,14 @@
                     <h2>Application activity</h2>
                     <p>Keep your next moves in view.</p>
                 </div>
-                <a class="text-link" href="/applications">View all<?= icon('arrow-up-right'); ?></a>
+                <a class="text-link" href="<?= e(app_base_path()); ?>/applications">View all<?= icon('arrow-up-right'); ?></a>
             </div>
             <?php if ($applications === []): ?> <?php empty_state(
                     'send',
                     'A clear path from saved to submitted',
                     'When you prepare your first application, its progress will appear here.',
                 ); ?> <?php else:foreach ($applications as $application): ?>
-            <a class="job-row" href="/applications/<?= e($application['id']); ?>">
+            <a class="job-row" href="<?= e(app_base_path()); ?>/applications/<?= e($application['id']); ?>">
                 <span class="company-avatar"><?= e(initials($application['employer'])); ?></span>
                 <div>
                     <h3><?= e($application['title']); ?></h3>
@@ -188,7 +188,7 @@
                     ],
                 ];
                 foreach ($steps as $index => [$done, $name, $description, $href]): ?>
-                <a class="checklist-item" href="<?= e($href); ?>">
+                <a class="checklist-item" href="<?= e(app_url($href)); ?>">
                     <span class="step-dot <?= $done ? 'done' : ''; ?>"><?= $done ? icon('check') : $index + 1; ?></span>
                     <div>
                         <strong><?= e($name); ?></strong>
@@ -214,7 +214,7 @@
                 </p>
             </div>
             <?php else:foreach ($stats['deadlines'] as $job): ?>
-            <a class="job-row" href="/jobs/<?= e($job['id']); ?>">
+            <a class="job-row" href="<?= e(app_base_path()); ?>/jobs/<?= e($job['id']); ?>">
                 <div>
                     <h3><?= e($job['title']); ?></h3>
                     <p><?= e($job['employer']); ?></p>
@@ -253,7 +253,7 @@
                 </div>
                 <?php endif; ?>
                 <div class="soft-note mt-4"><?= $latestRun && $latestRun['error_summary'] ? e($latestRun['error_summary']) : 'You stay in control. In Manual mode, JobFlow prepares applications and never sends them.'; ?></div>
-                <a class="text-link mt-4" href="/settings?tab=automation">
+                <a class="text-link mt-4" href="<?= e(app_base_path()); ?>/settings?tab=automation">
                     Manage automation<?= icon('arrow-right'); ?>
                 </a>
             </div>
@@ -264,7 +264,7 @@
 <section class="panel mt-6">
     <div class="panel-header">
         <h2>Latest activity</h2>
-        <a href="/activity" class="text-link">Activity centre<?= icon('arrow-up-right'); ?></a>
+        <a href="<?= e(app_base_path()); ?>/activity" class="text-link">Activity centre<?= icon('arrow-up-right'); ?></a>
     </div>
     <?php foreach (
     array_slice($activity, 0, 3)
@@ -282,12 +282,12 @@
 <?php endif; ?>
 <div class="quick-actions">
     <span class="eyebrow">QUICK ACTIONS</span>
-    <a class="quick-action" href="/jobs/add"><?= icon('plus'); ?>Add a job</a>
+    <a class="quick-action" href="<?= e(app_base_path()); ?>/jobs/add"><?= icon('plus'); ?>Add a job</a>
     <button class="quick-action" data-open-dialog="upload-dialog">
         <?= icon('upload'); ?>Upload a CV
     </button>
-    <a class="quick-action" href="/applications?status=ready_for_review">
+    <a class="quick-action" href="<?= e(app_base_path()); ?>/applications?status=ready_for_review">
         <?= icon('clipboard-check'); ?>Review applications
     </a>
-    <a class="quick-action" href="/settings?tab=automation"><?= icon('sliders-horizontal'); ?>Automation settings</a>
+    <a class="quick-action" href="<?= e(app_base_path()); ?>/settings?tab=automation"><?= icon('sliders-horizontal'); ?>Automation settings</a>
 </div>

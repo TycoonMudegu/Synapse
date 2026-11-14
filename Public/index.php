@@ -47,6 +47,8 @@ try {
         e($title) .
         '</h1><p>' .
         e($message) .
-        '</p><p>First installation? Follow README.md, run the migrations and create your administrator using the CLI.</p><a class="btn btn-primary" href="/login">Return to sign in</a></div>';
+        '</p><p>First installation? Follow README.md, run the migrations and create your administrator using the CLI.</p><a class="btn btn-primary" href="' .
+        e(app_url('/login')) .
+        '">Return to sign in</a></div>';
     require BASE_PATH . '/Resources/Views/layouts/guest.php';
 }

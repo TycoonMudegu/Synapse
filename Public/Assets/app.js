@@ -854,6 +854,10 @@ var createIcons = ({ icons: icons2 = {}, nameAttr = "data-lucide", attrs = {} } 
 };
 
 // Resources/js/api.js
+function appUrl(path) {
+  const base = document.querySelector('meta[name="app-base-path"]')?.content ?? "";
+  return `${base}/${path.replace(/^\/+/, "")}`;
+}
 async function request(url, { method = "POST", data = null } = {}) {
   const headers = {
     Accept: "application/json",
@@ -890,7 +894,7 @@ async function request(url, { method = "POST", data = null } = {}) {
   }
   if (!response.ok || !result.ok) {
     if (response.status === 401) {
-      window.location.assign("/login");
+      window.location.assign(appUrl("/login"));
     }
     throw new Error(result.message ?? "This operation could not be completed.");
   }
@@ -957,7 +961,7 @@ async function trackTask(id) {
   let count = 0;
   const check = async () => {
     try {
-      const result = await request(`/api/tasks/${id}`, { method: "GET" });
+      const result = await request(appUrl(`/api/tasks/${id}`), { method: "GET" });
       const task = result.data;
       if (task.status === "completed") {
         sessionStorage.removeItem("jobflow-task");
@@ -1182,7 +1186,9 @@ function initialiseImports() {
       form.querySelector(".form-error").hidden = true;
       await withLoading(event.submitter, async () => {
         try {
-          const result = await request("/api/jobs/extract", { data: new FormData(form) });
+          const result = await request(appUrl("/api/jobs/extract"), {
+            data: new FormData(form)
+          });
           populateJob(result.data);
           toast(result.message);
         } catch (error) {
@@ -1197,10 +1203,12 @@ function initialiseImports() {
     form.querySelector(".form-error").hidden = true;
     await withLoading(event.submitter, async () => {
       try {
-        const uploaded = await request("/api/documents", { data: new FormData(form) });
+        const uploaded = await request(appUrl("/api/documents"), {
+          data: new FormData(form)
+        });
         document.querySelector("#job-details-form").elements.namedItem("poster_document_id").value = uploaded.document.id;
         toast("Poster stored privately. Extracting the advertisement\u2026");
-        const extracted = await request("/api/jobs/extract", {
+        const extracted = await request(appUrl("/api/jobs/extract"), {
           data: { type: "poster", document_id: uploaded.document.id }
         });
         populateJob(extracted.data);
@@ -1242,7 +1250,7 @@ function initialiseProfile() {
       await withLoading(button, async () => {
         try {
           const result = await request(
-            `/api/documents/${button.dataset.profileImport}/profile`,
+            appUrl(`/api/documents/${button.dataset.profileImport}/profile`),
             { data: {} }
           );
           const form = document.querySelector("#profile-form");

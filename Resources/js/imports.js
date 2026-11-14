@@ -1,4 +1,4 @@
-import { request, toast, withLoading, showFormError } from './api.js';
+import { appUrl, request, toast, withLoading, showFormError } from './api.js';
 
 function populateJob(data) {
     const form = document.querySelector('#job-details-form');
@@ -56,7 +56,9 @@ export function initialiseImports() {
             form.querySelector('.form-error').hidden = true;
             await withLoading(event.submitter, async () => {
                 try {
-                    const result = await request('/api/jobs/extract', { data: new FormData(form) });
+                    const result = await request(appUrl('/api/jobs/extract'), {
+                        data: new FormData(form),
+                    });
                     populateJob(result.data);
                     toast(result.message);
                 } catch (error) {
@@ -72,12 +74,14 @@ export function initialiseImports() {
         form.querySelector('.form-error').hidden = true;
         await withLoading(event.submitter, async () => {
             try {
-                const uploaded = await request('/api/documents', { data: new FormData(form) });
+                const uploaded = await request(appUrl('/api/documents'), {
+                    data: new FormData(form),
+                });
                 document
                     .querySelector('#job-details-form')
                     .elements.namedItem('poster_document_id').value = uploaded.document.id;
                 toast('Poster stored privately. Extracting the advertisement…');
-                const extracted = await request('/api/jobs/extract', {
+                const extracted = await request(appUrl('/api/jobs/extract'), {
                     data: { type: 'poster', document_id: uploaded.document.id },
                 });
                 populateJob(extracted.data);

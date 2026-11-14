@@ -2,19 +2,22 @@ import { chromium, expect } from '@playwright/test';
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdir, readFile } from 'node:fs/promises';
 
-const base = 'http://127.0.0.1:8848';
+const externalBase = process.env.JOBFLOW_BROWSER_BASE_URL;
+const base = externalBase?.replace(/\/$/, '') ?? 'http://127.0.0.1:8848';
 const fixture = JSON.parse(
     execFileSync('php', ['tests/browser-fixtures.php', 'setup'], { encoding: 'utf8' }),
 );
-const server = spawn('php', ['-S', '127.0.0.1:8848', '-t', 'Public', 'Public/router.php'], {
-    env: {
-        ...process.env,
-        DB_DATABASE: process.env.JOBFLOW_TEST_DATABASE ?? 'jobflow_test',
-        SESSION_SECURE: 'false',
-        APP_URL: base,
-    },
-    stdio: 'ignore',
-});
+const server = externalBase
+    ? null
+    : spawn('php', ['-S', '127.0.0.1:8848', '-t', 'Public', 'Public/router.php'], {
+          env: {
+              ...process.env,
+              DB_DATABASE: process.env.JOBFLOW_TEST_DATABASE ?? 'jobflow_test',
+              SESSION_SECURE: 'false',
+              APP_URL: base,
+          },
+          stdio: 'ignore',
+      });
 let browser;
 let assertions = 0;
 function pass(message) {
@@ -46,7 +49,7 @@ try {
     const noCsrf = await context.request.post(`${base}/login`, {
         data: { email: fixture.email, password: fixture.password },
     });
-    expect(noCsrf.status()).toBe(419);
+    expect(noCsrf.status()).toBe(403);
     pass('sign-in rejects missing CSRF');
     const incorrect = await context.request.post(`${base}/login`, {
         headers: { 'X-CSRF-Token': csrf },
@@ -193,26 +196,22 @@ try {
     pass('external confirmation and Nairobi-time interview scheduling persist');
     await page.goto(`${base}/documents`);
     await page.getByRole('button', { name: 'Upload document', exact: true }).click();
-    await page
-        .locator('#upload-dialog input[type=file]')
-        .setInputFiles({
-            name: 'malicious.php',
-            mimeType: 'application/x-php',
-            buffer: Buffer.from('<?php echo "not safe";'),
-        });
+    await page.locator('#upload-dialog input[type=file]').setInputFiles({
+        name: 'malicious.php',
+        mimeType: 'application/x-php',
+        buffer: Buffer.from('<?php echo "not safe";'),
+    });
     await page
         .locator('#upload-dialog')
         .getByRole('button', { name: 'Upload document', exact: true })
         .click();
     await expect(page.locator('#upload-dialog .form-error')).toContainText('supported');
     pass('upload rejects executable content despite its filename');
-    await page
-        .locator('#upload-dialog input[type=file]')
-        .setInputFiles({
-            name: 'fixture-upload.docx',
-            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            buffer: await readFile(fixture.path),
-        });
+    await page.locator('#upload-dialog input[type=file]').setInputFiles({
+        name: 'fixture-upload.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        buffer: await readFile(fixture.path),
+    });
     await page
         .locator('#upload-dialog')
         .getByRole('button', { name: 'Upload document', exact: true })
@@ -235,7 +234,7 @@ try {
     const protectedResponse = await context.request.get(`${base}/documents/999999999/download`);
     expect(protectedResponse.status()).toBe(404);
     expect((await context.request.get(`${base}/register`)).status()).toBe(404);
-    expect((await context.request.get(`${base}/.env`)).status()).toBe(404);
+    expect([403, 404]).toContain((await context.request.get(`${base}/.env`)).status());
     pass('unknown documents, public registration and private files are inaccessible');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(base);
@@ -269,6 +268,6 @@ try {
     console.log(`\n${assertions} browser checks passed.`);
 } finally {
     if (browser) await browser.close();
-    server.kill('SIGTERM');
+    server?.kill('SIGTERM');
     execFileSync('php', ['tests/browser-fixtures.php', 'cleanup', String(fixture.id)]);
 }

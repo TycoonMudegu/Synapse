@@ -1,17 +1,17 @@
 <div class="page-heading">
     <div>
-        <a href="/jobs" class="text-link mb-2"><?= icon('arrow-left'); ?>Back to my jobs</a>
+        <a href="<?= e(app_base_path()); ?>/jobs" class="text-link mb-2"><?= icon('arrow-left'); ?>Back to my jobs</a>
         <h1>One possibility. A closer look.</h1>
     </div>
-    <div class="heading-actions"><a class="btn" href="/jobs/<?= e($job['id']); ?>/edit"><?= icon('square-pen'); ?>Edit details</a>
+    <div class="heading-actions"><a class="btn" href="<?= e(app_base_path()); ?>/jobs/<?= e($job['id']); ?>/edit"><?= icon('square-pen'); ?>Edit details</a>
         <button
             class="btn"
-            data-action="/api/jobs/<?= e($job['id']); ?>/analyse"
+            data-action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/analyse"
             data-loading="Queuing analysis…"
         >
             <?= icon('sparkles'); ?>Analyse fit
         </button>
-        <button class="btn btn-primary" data-action="/api/jobs/<?= e($job['id']); ?>/apply">
+        <button class="btn btn-primary" data-action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/apply">
             <?= icon('send'); ?>Prepare application
         </button>
     </div>
@@ -60,7 +60,7 @@
             <form
                 class="panel-body form-stack"
                 data-ai-assist
-                action="/api/jobs/<?= e($job['id']); ?>/assist"
+                action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/assist"
             >
                 <div class="form-error" role="alert" hidden></div>
                 <div class="field">
@@ -174,7 +174,7 @@ if ($job['original_url']): ?>
                 </a>
                 <?php endif;
 ?> <?php if (!$job['verified_at']): ?>
-                <form action="/api/jobs/<?= e($job['id']); ?>/verify" data-async class="form-stack">
+                <form action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/verify" data-async class="form-stack">
                     <div class="form-error" role="alert" hidden></div>
                     <label class="check-label">
                         <input type="checkbox" name="verified" value="1" required />
@@ -189,7 +189,7 @@ if ($job['original_url']): ?>
             </div>
         </section>
         <form
-            action="/api/jobs/<?= e($job['id']); ?>/status"
+            action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/status"
             data-async
             class="panel panel-body form-stack"
         >

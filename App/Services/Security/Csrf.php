@@ -18,7 +18,7 @@ final class Csrf
         if ($token === '' || !hash_equals(self::token(), $token)) {
             throw new HttpException(
                 'Your session has expired. Refresh this page and try again.',
-                419,
+                403,
             );
         }
     }

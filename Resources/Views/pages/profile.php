@@ -6,11 +6,11 @@
     </div>
     <div class="heading-actions">
         <button class="btn" data-open-dialog="upload-dialog"><?= icon('upload'); ?>Upload CV</button>
-        <form action="/api/profile/export" data-async>
+        <form action="<?= e(app_base_path()); ?>/api/profile/export" data-async>
             <input type="hidden" name="format" value="pdf" />
             <button class="btn btn-soft"><?= icon('download'); ?>Export PDF</button>
         </form>
-        <form action="/api/profile/export" data-async>
+        <form action="<?= e(app_base_path()); ?>/api/profile/export" data-async>
             <input type="hidden" name="format" value="docx" />
             <button class="btn btn-soft"><?= icon('download'); ?>DOCX</button>
         </form>
@@ -27,7 +27,7 @@
     </div>
 </div>
 <div class="content-grid">
-    <form action="/api/profile" method="post" data-async id="profile-form" class="stack">
+    <form action="<?= e(app_base_path()); ?>/api/profile" method="post" data-async id="profile-form" class="stack">
         <div class="form-error" role="alert" hidden></div>
         <section class="panel">
             <div class="panel-header">
@@ -206,7 +206,7 @@ else:
     ): ?>
             <div class="job-row flex-wrap">
                 <div>
-                    <a class="text-link break-all" href="/documents/<?= e($document['id']); ?>">
+                    <a class="text-link break-all" href="<?= e(app_base_path()); ?>/documents/<?= e($document['id']); ?>">
                         <?= e($document['name']); ?>
                     </a>
                     <p><?= e(short_date($document['created_at'])); ?> <?= $document[ 'is_master' ] ? '· Master CV' : ''; ?></p>

@@ -1,10 +1,10 @@
 <div class="page-heading">
     <div>
-        <a class="text-link mb-2" href="/documents"><?= icon('arrow-left'); ?>Document library</a>
+        <a class="text-link mb-2" href="<?= e(app_base_path()); ?>/documents"><?= icon('arrow-left'); ?>Document library</a>
         <h1 class="break-all"><?= e($document['name']); ?></h1>
         <p><?= e(label($document['kind'])); ?> · Version <?= e($document['version']); ?> · <?= e(short_date($document['created_at'])); ?></p>
     </div>
-    <a class="btn btn-primary" href="/documents/<?= e($document['id']); ?>/download">
+    <a class="btn btn-primary" href="<?= e(app_base_path()); ?>/documents/<?= e($document['id']); ?>/download">
         <?= icon('download'); ?>Download
     </a>
 </div>
@@ -12,7 +12,7 @@
     <section class="panel">
         <?php if (str_starts_with($document['mime_type'], 'image/')): ?>
         <img
-            src="/documents/<?= e($document['id']); ?>/download?preview=1"
+            src="<?= e(app_base_path()); ?>/documents/<?= e($document['id']); ?>/download?preview=1"
             class="document-preview"
             alt="<?= e($document['name']); ?>"
         />
@@ -22,7 +22,7 @@
         <iframe
             title="PDF preview of <?= e($document['name']); ?>"
             class="document-preview"
-            src="/documents/<?= e($document['id']); ?>/download?preview=1"
+            src="<?= e(app_base_path()); ?>/documents/<?= e($document['id']); ?>/download?preview=1"
         ></iframe>
         <?php elseif (
     $document['extracted_text']
@@ -56,14 +56,14 @@
                 <?php if (
     $document['parent_id']
 ): ?>
-                <a class="text-link" href="/documents/<?= e($document['parent_id']); ?>">
+                <a class="text-link" href="<?= e(app_base_path()); ?>/documents/<?= e($document['parent_id']); ?>">
                     Previous version<?= icon('arrow-left'); ?>
                 </a>
                 <?php endif; ?>
             </div>
         </section>
         <form
-            action="/api/documents/<?= e($document['id']); ?>/rename"
+            action="<?= e(app_base_path()); ?>/api/documents/<?= e($document['id']); ?>/rename"
             data-async
             class="panel panel-body form-stack"
         >
@@ -83,13 +83,13 @@
         <?php if (
     in_array($document['kind'], ['master_cv', 'tailored_cv'], true)
 ): ?>
-        <button class="btn btn-soft" data-action="/api/documents/<?= e($document['id']); ?>/master">
+        <button class="btn btn-soft" data-action="<?= e(app_base_path()); ?>/api/documents/<?= e($document['id']); ?>/master">
             <?= icon('star'); ?>Use as master CV
         </button>
         <?php endif; ?>
         <button
             class="btn btn-danger"
-            data-action="/api/documents/<?= e($document['id']); ?>/delete"
+            data-action="<?= e(app_base_path()); ?>/api/documents/<?= e($document['id']); ?>/delete"
             data-confirm="Permanently delete this private document? Documents attached to applications are protected."
         >
             <?= icon('trash-2'); ?>Delete document
@@ -101,13 +101,13 @@
         <div class="panel-header"><h2>Connections & versions</h2></div>
         <div class="panel-body form-stack">
             <?php foreach ($associations as $associatedJob): ?>
-                <a class="text-link" href="/jobs/<?= e($associatedJob['id']); ?>">
+                <a class="text-link" href="<?= e(app_base_path()); ?>/jobs/<?= e($associatedJob['id']); ?>">
                     <?= e($associatedJob['title'] . ' · ' . $associatedJob['employer']); ?>
                     <?= icon('arrow-up-right'); ?>
                 </a>
             <?php endforeach; ?>
             <?php foreach ($nextVersions as $version): ?>
-                <a class="text-link" href="/documents/<?= e($version['id']); ?>">
+                <a class="text-link" href="<?= e(app_base_path()); ?>/documents/<?= e($version['id']); ?>">
                     Version <?= e($version['version']); ?> · <?= e($version['name']); ?>
                     <?= icon('arrow-right'); ?>
                 </a>
@@ -115,7 +115,7 @@
             <?php if ($snapshot && isset($snapshot['profile'])): ?>
                 <div class="heading-actions">
                     <?php foreach (['pdf', 'docx'] as $format): ?>
-                        <form action="/api/documents/<?= e($document['id']); ?>/export" data-async>
+                        <form action="<?= e(app_base_path()); ?>/api/documents/<?= e($document['id']); ?>/export" data-async>
                             <input type="hidden" name="format" value="<?= e($format); ?>">
                             <button class="btn btn-soft"><?= icon('download'); ?>Export <?= e(strtoupper($format)); ?></button>
                         </form>

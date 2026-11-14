@@ -20,7 +20,7 @@
         </div>
         <?php endif; ?>
         <div class="heading-actions">
-            <form action="/gmail/connect" method="post">
+            <form action="<?= e(app_base_path()); ?>/gmail/connect" method="post">
                 <?= csrf_field(); ?>
                 <button class="btn btn-primary" <?= $gmailConfigured ? '' : 'disabled'; ?>>
                     <?= icon('link'); ?><?= $connection ? 'Reconnect / choose another account' : 'Connect Gmail'; ?>
@@ -31,7 +31,7 @@
 ): ?>
             <button
                 class="btn"
-                data-action="/api/gmail/test"
+                data-action="<?= e(app_base_path()); ?>/api/gmail/test"
                 data-confirm="Send a connection test email to your connected Gmail account?"
                 data-loading="Sending test email…"
             >
@@ -39,7 +39,7 @@
             </button>
             <button
                 class="btn btn-danger"
-                data-action="/api/gmail/disconnect"
+                data-action="<?= e(app_base_path()); ?>/api/gmail/disconnect"
                 data-confirm="Disconnect Gmail and remove stored tokens?"
             >
                 Disconnect
@@ -50,7 +50,7 @@
 </section>
 <section class="panel">
     <div class="panel-header"><h2>Sending & relevant correspondence</h2></div>
-    <form action="/api/settings" data-async class="panel-body form-stack">
+    <form action="<?= e(app_base_path()); ?>/api/settings" data-async class="panel-body form-stack">
         <input type="hidden" name="section" value="gmail" />
         <div class="form-error" hidden role="alert"></div>
         <div class="field">

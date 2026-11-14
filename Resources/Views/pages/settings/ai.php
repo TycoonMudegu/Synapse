@@ -43,14 +43,14 @@ else:
                     <td>
                         <div class="flex gap-2">
                             <a
-                                href="/settings?tab=ai&edit_provider=<?= e($provider['id']); ?>#provider-form"
+                                href="<?= e(app_base_path()); ?>/settings?tab=ai&edit_provider=<?= e($provider['id']); ?>#provider-form"
                                 class="btn btn-sm"
                             >
                                 Edit
                             </a>
                             <button
                                 class="btn btn-sm"
-                                data-action="/api/providers/<?= e($provider['id']); ?>/test"
+                                data-action="<?= e(app_base_path()); ?>/api/providers/<?= e($provider['id']); ?>/test"
                                 data-loading="Testing model…"
                             >
                                 Test connection
@@ -80,7 +80,7 @@ $providerOptions = $editingProvider ? json_decode($editingProvider['options_json
         <h2><?= $editingProvider ? 'Edit provider' : 'Connect an AI provider'; ?></h2>
         <span class="badge"><?= icon('lock-keyhole', 'w-3 h-3'); ?>Encrypted credentials</span>
     </div>
-    <form action="/api/providers" data-async class="panel-body">
+    <form action="<?= e(app_base_path()); ?>/api/providers" data-async class="panel-body">
         <div class="form-error" hidden role="alert"></div>
         <input type="hidden" name="id" value="<?= e($editingProvider['id'] ?? 0); ?>" />
         <div class="form-grid">
@@ -168,7 +168,7 @@ $inputField(
 </section>
 <section class="panel">
     <div class="panel-header"><h2>Task assignments & budget</h2></div>
-    <form action="/api/settings" data-async class="panel-body">
+    <form action="<?= e(app_base_path()); ?>/api/settings" data-async class="panel-body">
         <input type="hidden" name="section" value="ai" />
         <div class="form-error" hidden role="alert"></div>
         <div class="form-grid">

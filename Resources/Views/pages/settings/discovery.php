@@ -49,13 +49,13 @@ else:
                         <div class="flex gap-2 flex-wrap">
                             <a
                                 class="btn btn-sm"
-                                href="/settings?tab=discovery&edit_source=<?= e($source['id']); ?>#source-form"
+                                href="<?= e(app_base_path()); ?>/settings?tab=discovery&edit_source=<?= e($source['id']); ?>#source-form"
                             >
                                 Edit
                             </a>
                             <button
                                 class="btn btn-sm"
-                                data-action="/api/sources/<?= e($source['id']); ?>"
+                                data-action="<?= e(app_base_path()); ?>/api/sources/<?= e($source['id']); ?>"
                                 data-payload='{"action":"test"}'
                                 data-loading="Checking feed…"
                             >
@@ -63,14 +63,14 @@ else:
                             </button>
                             <button
                                 class="btn btn-sm"
-                                data-action="/api/sources/<?= e($source['id']); ?>"
+                                data-action="<?= e(app_base_path()); ?>/api/sources/<?= e($source['id']); ?>"
                                 data-payload='{"action":"toggle"}'
                             >
                                 <?= $source['enabled'] ? 'Disable' : 'Enable'; ?>
                             </button>
                             <button
                                 class="icon-button"
-                                data-action="/api/sources/<?= e($source['id']); ?>"
+                                data-action="<?= e(app_base_path()); ?>/api/sources/<?= e($source['id']); ?>"
                                 data-payload='{"action":"delete"}'
                                 data-confirm="Delete this source? Saved jobs will be retained."
                                 aria-label="Delete source"
@@ -98,7 +98,7 @@ foreach ($sources as $candidate) {
 ?>
 <section class="panel" id="source-form">
     <div class="panel-header"><h2><?= $editingSource ? 'Edit source' : 'Add a permitted source'; ?></h2></div>
-    <form action="/api/sources" data-async class="panel-body form-stack">
+    <form action="<?= e(app_base_path()); ?>/api/sources" data-async class="panel-body form-stack">
         <div class="form-error" role="alert" hidden></div>
         <input type="hidden" name="id" value="<?= e($editingSource['id'] ?? 0); ?>" />
         <div class="form-grid">
@@ -133,7 +133,7 @@ foreach ($sources as $candidate) {
 </section>
 <section class="panel">
     <div class="panel-header"><h2>Your discovery preferences</h2></div>
-    <form action="/api/settings" data-async class="panel-body">
+    <form action="<?= e(app_base_path()); ?>/api/settings" data-async class="panel-body">
         <input type="hidden" name="section" value="discovery" />
         <div class="form-error" role="alert" hidden></div>
         <div class="form-grid">

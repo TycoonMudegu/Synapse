@@ -22,7 +22,7 @@
 ): ?>
     <article class="document-card">
         <?= icon($document['kind'] === 'job_poster' ? 'image' : 'file-text'); ?>
-        <h3><a href="/documents/<?= e($document['id']); ?>"><?= e($document['name']); ?></a></h3>
+        <h3><a href="<?= e(app_base_path()); ?>/documents/<?= e($document['id']); ?>"><?= e($document['name']); ?></a></h3>
         <div class="flex flex-wrap gap-2">
             <span class="badge"><?= e(label($document['kind'])); ?></span>
             <span class="badge">v<?= e($document['version']); ?></span>
@@ -34,12 +34,12 @@
         </div>
         <p><?= e(number_format((float) $document['byte_size'] / 1024)); ?> KB · <?= e(short_date($document['created_at'])); ?></p>
         <div class="heading-actions">
-            <a class="btn btn-sm" href="/documents/<?= e($document['id']); ?>">
+            <a class="btn btn-sm" href="<?= e(app_base_path()); ?>/documents/<?= e($document['id']); ?>">
                 View details<?= icon('arrow-up-right'); ?>
             </a>
             <a
                 class="icon-button"
-                href="/documents/<?= e($document['id']); ?>/download"
+                href="<?= e(app_base_path()); ?>/documents/<?= e($document['id']); ?>/download"
                 aria-label="Download <?= e($document['name']); ?>"
             >
                 <?= icon('download'); ?>

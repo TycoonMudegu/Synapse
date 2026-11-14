@@ -1,6 +1,6 @@
 <section class="panel">
     <div class="panel-header"><h2>Document preferences</h2></div>
-    <form action="/api/settings" data-async class="panel-body form-stack">
+    <form action="<?= e(app_base_path()); ?>/api/settings" data-async class="panel-body form-stack">
         <input type="hidden" name="section" value="documents" />
         <div class="form-error" hidden role="alert"></div>
         <div class="field">
@@ -15,7 +15,7 @@
             career profile and manage the master CV from the library.
         </div>
         <div class="form-actions">
-            <a class="btn" href="/documents">Open document library</a>
+            <a class="btn" href="<?= e(app_base_path()); ?>/documents">Open document library</a>
             <button class="btn btn-primary">Save document preferences</button>
         </div>
     </form>

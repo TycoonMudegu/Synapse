@@ -1,6 +1,6 @@
 <div class="page-heading">
     <div>
-        <a href="/applications" class="text-link mb-2"><?= icon('arrow-left'); ?>All applications</a>
+        <a href="<?= e(app_base_path()); ?>/applications" class="text-link mb-2"><?= icon('arrow-left'); ?>All applications</a>
         <h1>Put your best self forward.</h1>
         <p><?= e($application['title']); ?> · <?= e($application['employer']); ?></p>
     </div>
@@ -40,7 +40,7 @@
         ): ?>
                 <button
                     class="btn btn-soft btn-sm"
-                    data-action="/api/applications/<?= e($application['id']); ?>/prepare"
+                    data-action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/prepare"
                     data-loading="Queuing document preparation…"
                 >
                     <?= icon('sparkles'); ?><?= $application['cv_document_id'] ? 'Regenerate with AI' : 'Prepare with AI'; ?>
@@ -48,7 +48,7 @@
                 <?php endif; ?>
             </div>
             <form
-                action="/api/applications/<?= e($application['id']); ?>"
+                action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>"
                 data-async
                 class="panel-body form-stack"
             >
@@ -92,7 +92,7 @@ endforeach; ?>
 ): ?>
                         <a
                             class="text-link"
-                            href="/documents/<?= e($application[$field]); ?>"
+                            href="<?= e(app_base_path()); ?>/documents/<?= e($application[$field]); ?>"
                             target="_blank"
                             rel="noopener"
                         >
@@ -164,7 +164,7 @@ endforeach; ?>
                 <?php endif; ?>
             </div>
             <form
-                action="/api/applications/<?= e($application['id']); ?>/letter"
+                action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/letter"
                 data-async
                 class="panel-body form-stack"
             >
@@ -192,7 +192,7 @@ endforeach; ?>
         <section class="panel">
             <div class="panel-header"><h2>The next step</h2></div>
             <div class="panel-body pt-0 form-stack">
-                <a class="text-link" href="/jobs/<?= e($application['job_id']); ?>">
+                <a class="text-link" href="<?= e(app_base_path()); ?>/jobs/<?= e($application['job_id']); ?>">
                     Review the opportunity<?= icon('arrow-up-right'); ?>
                 </a>
                 <div class="definition-row m-0">
@@ -220,7 +220,7 @@ endforeach; ?>
                 </a>
                 <?php endif; ?> <?php if ($transitions): ?>
                 <form
-                    action="/api/applications/<?= e($application['id']); ?>/status"
+                    action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/status"
                     data-async
                     class="form-stack"
                 >
@@ -255,7 +255,7 @@ endforeach; ?>
             ): ?>
                 <button
                     class="btn btn-primary"
-                    data-action="/api/applications/<?= e($application['id']); ?>/send"
+                    data-action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/send"
                     data-confirm="Send this approved application to the verified employer email address?"
                     data-loading="Queuing submission…"
                 >
@@ -274,7 +274,7 @@ endforeach; ?>
 <?php if (in_array($application['status'], ['submitted', 'awaiting_external_action', 'interview'], true)): ?>
     <section class="panel mt-6">
         <div class="panel-header"><h2>Interview details</h2></div>
-        <form action="/api/applications/<?= e($application['id']); ?>/interview" data-async class="panel-body form-stack">
+        <form action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/interview" data-async class="panel-body form-stack">
             <div class="form-error" role="alert" hidden></div>
             <div class="field">
                 <label for="interview-time">Interview date & time (Africa/Nairobi)</label>

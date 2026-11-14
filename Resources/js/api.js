@@ -1,3 +1,8 @@
+export function appUrl(path) {
+    const base = document.querySelector('meta[name="app-base-path"]')?.content ?? '';
+    return `${base}/${path.replace(/^\/+/, '')}`;
+}
+
 export async function request(url, { method = 'POST', data = null } = {}) {
     const headers = {
         Accept: 'application/json',
@@ -36,7 +41,7 @@ export async function request(url, { method = 'POST', data = null } = {}) {
     }
     if (!response.ok || !result.ok) {
         if (response.status === 401) {
-            window.location.assign('/login');
+            window.location.assign(appUrl('/login'));
         }
         throw new Error(result.message ?? 'This operation could not be completed.');
     }
