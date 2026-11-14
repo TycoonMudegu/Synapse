@@ -10,8 +10,12 @@ final class JobRepository extends Repository
 {
     private const SELECT = 'SELECT j.*, m.score, m.eligibility, m.result_json, s.name AS source_name FROM job_listings j LEFT JOIN match_results m ON m.job_id = j.id AND m.user_id = j.user_id LEFT JOIN job_sources s ON s.id = j.source_id AND s.user_id = j.user_id';
 
-    public function list(int $userId, array $filters = [], int $limit = 50): array
-    {
+    public function list(
+        int $userId,
+        array $filters = [],
+        int $limit = 50,
+        ?callable $matches = null,
+    ): array {
         $where = ['j.user_id = ?'];
         $parameters = [$userId];
         if (($filters['q'] ?? '') !== '') {
@@ -27,16 +31,26 @@ final class JobRepository extends Repository
             $where[] = 'm.score >= 70';
         }
         $sort = ($filters['sort'] ?? '') === 'match' ? 'm.score DESC, j.id DESC' : 'j.id DESC';
-        return $this->rows(
+        $limit = min(200, max(1, $limit));
+        $statement = $this->query(
             self::SELECT .
                 ' WHERE ' .
                 implode(' AND ', $where) .
                 ' ORDER BY ' .
                 $sort .
-                ' LIMIT ' .
-                min(200, max(1, $limit)),
+                ($matches === null ? ' LIMIT ' . $limit : ''),
             $parameters,
         );
+        $jobs = [];
+        while ($job = $statement->fetch()) {
+            if ($matches === null || $matches($job)) {
+                $jobs[] = $job;
+                if (count($jobs) >= $limit) {
+                    break;
+                }
+            }
+        }
+        return $jobs;
     }
 
     public function get(int $userId, int $id): array

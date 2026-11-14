@@ -162,6 +162,19 @@ try {
     await page.goto(jobUrl);
     pass('job editing preserves verified fields and requirement text');
     pass('manual job entry saves to the database and opens the vacancy');
+    await page.goto(`${base}/settings?tab=discovery`);
+    await page.getByLabel('Role focus', { exact: true }).selectOption('technology');
+    await page.getByRole('button', { name: 'Save discovery settings', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: /saved/i })).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel('Role focus', { exact: true })).toHaveValue('technology');
+    await page.goto(`${base}/discover`);
+    await expect(page.getByText('Technology & IT focus', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Browser fixture vacancy/ })).toHaveCount(0);
+    await page.goto(`${base}/jobs`);
+    await expect(page.getByRole('link', { name: /Browser fixture vacancy/ })).toBeVisible();
+    pass('technical role focus persists and filters Discover while retaining saved jobs');
+    await page.goto(jobUrl);
     await page.getByRole('button', { name: 'Prepare application', exact: true }).click();
     await expect(page).toHaveURL(/\/applications\/\d+$/);
     const applicationUrl = page.url();
@@ -274,12 +287,26 @@ try {
         '/settings?tab=gmail',
     ]) {
         await page.goto(`${base}${route}`);
-        const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+        const fits = await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+        );
         if (!fits) {
-            console.log(await page.evaluate(() => [...document.querySelectorAll('body *')]
-                .filter((element) => element.getBoundingClientRect().right > window.innerWidth + 1)
-                .slice(0, 12)
-                .map((element) => ({ tag: element.tagName, class: element.className, width: Math.round(element.getBoundingClientRect().width), text: element.textContent.trim().slice(0, 70) }))));
+            console.log(
+                await page.evaluate(() =>
+                    [...document.querySelectorAll('body *')]
+                        .filter(
+                            (element) =>
+                                element.getBoundingClientRect().right > window.innerWidth + 1,
+                        )
+                        .slice(0, 12)
+                        .map((element) => ({
+                            tag: element.tagName,
+                            class: element.className,
+                            width: Math.round(element.getBoundingClientRect().width),
+                            text: element.textContent.trim().slice(0, 70),
+                        })),
+                ),
+            );
             await page.screenshot({ path: 'tests/.runtime/mobile-overflow.png', fullPage: true });
         }
         expect(fits, route).toBe(true);

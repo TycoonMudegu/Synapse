@@ -15,8 +15,14 @@ use App\Services\JobService;
 
 final class DiscoveryService
 {
+    /** @param array<string, SourceAdapter> $adapters */
+    public function __construct(private readonly array $adapters = []) {}
+
     public function adapter(string $type): SourceAdapter
     {
+        if (isset($this->adapters[$type])) {
+            return $this->adapters[$type];
+        }
         return match ($type) {
             'rss' => new FeedAdapter(),
             'myjobmag' => new MyJobMagAdapter(),
@@ -73,7 +79,12 @@ final class DiscoveryService
                     continue;
                 }
                 $checked++;
-                $items = $this->adapter($source['adapter'])->collect($source, $limit - $processed);
+                // Scan the bounded structured feed before spending the processing allowance.
+                // Plain-text sources still respect the AI extraction limit and budget.
+                $items = $this->adapter($source['adapter'])->collect(
+                    $source,
+                    $source['adapter'] === 'myjobmag' ? 200 : $limit - $processed,
+                );
                 $sources->health($userId, (int) $source['id'], true);
             } catch (\Throwable $exception) {
                 $message =
@@ -85,6 +96,12 @@ final class DiscoveryService
                 continue;
             }
             foreach ($items as $item) {
+                if ($processed >= $limit) {
+                    break;
+                }
+                if (isset($item['structured']) && !$this->matches($item['structured'], $settings)) {
+                    continue;
+                }
                 $processed++;
                 try {
                     $spent =
@@ -182,6 +199,12 @@ final class DiscoveryService
 
     public function matches(array $job, array $settings): bool
     {
+        if (
+            ($settings['role_focus'] ?? 'any') === 'technology' &&
+            !TechnologyRoles::matches($job)
+        ) {
+            return false;
+        }
         $haystack = mb_strtolower(
             ($job['title'] ?? '') .
                 ' ' .
@@ -190,28 +213,19 @@ final class DiscoveryService
                 ($job['industry'] ?? ''),
         );
         $keywords = array_filter(array_map('trim', explode(',', $settings['keywords'])));
-        if (
-            $keywords &&
-            !array_filter($keywords, fn($word) => str_contains($haystack, mb_strtolower($word)))
-        ) {
+        if ($keywords && !KeywordMatcher::any($haystack, $keywords)) {
             return false;
         }
         foreach (
             array_filter(array_map('trim', explode(',', $settings['excluded_keywords'])))
             as $word
         ) {
-            if (str_contains($haystack, mb_strtolower($word))) {
+            if (KeywordMatcher::contains($haystack, $word)) {
                 return false;
             }
         }
         $categories = array_filter(array_map('trim', explode(',', $settings['categories'])));
-        if (
-            $categories &&
-            !array_filter(
-                $categories,
-                fn($category) => str_contains($haystack, mb_strtolower($category)),
-            )
-        ) {
+        if ($categories && !KeywordMatcher::any($haystack, $categories)) {
             return false;
         }
         if (

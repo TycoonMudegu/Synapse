@@ -17,8 +17,11 @@ use App\Services\Discovery\DiscoveryService;
 use App\Services\Discovery\EmailAlertAdapter;
 use App\Services\Discovery\EmailAlertParser;
 use App\Services\Discovery\LocationMatcher;
+use App\Services\Discovery\KeywordMatcher;
+use App\Services\Discovery\TechnologyRoles;
 use App\Services\Discovery\MyJobMagAdapter;
 use App\Services\Discovery\SourceCatalog;
+use App\Services\Discovery\SourceAdapter;
 use App\Services\Discovery\SourcePresetService;
 use App\Services\Mail\GmailService;
 use App\Services\Security\Crypto;
@@ -89,6 +92,132 @@ source_check('missing advertised deadlines stay unknown', function () use ($xml)
     $xml = preg_replace('#<expiryDate>.*?</expiryDate>#', '', $xml);
     source_same(null, (new MyJobMagAdapter())->parse($xml, 1)[0]['structured']['deadline']);
 });
+source_check('an incomplete feed entry does not hide later usable vacancies', function () use (
+    $xml,
+): void {
+    preg_match('#<item>(.*?)</item>#s', $xml, $matches);
+    $incomplete = str_replace('<company>Fixture organisation</company>', '', $matches[0]);
+    $mixed = str_replace('<item>', $incomplete . '<item>', $xml);
+    source_same(1, count((new MyJobMagAdapter())->parse($mixed, 200)));
+});
+source_check('keyword matching respects whole words and dash-separated phrases', function (): void {
+    source_same(false, KeywordMatcher::contains('Audit assistant with computer literacy', 'IT'));
+    source_same(true, KeywordMatcher::contains('IT support', 'it'));
+    source_same(true, KeywordMatcher::contains('Front-end developer', 'front end'));
+    source_same(true, KeywordMatcher::contains('Senior PHP/MySQL developer', 'PHP'));
+    source_same(true, KeywordMatcher::contains('C++ developer', 'C++'));
+    source_same(false, KeywordMatcher::contains('JavaScript developer', 'Java'));
+});
+source_check(
+    'technology focus recognises the requested roles and related technical titles',
+    function (): void {
+        foreach (
+            [
+                'IT Officer',
+                'ICT Assistant',
+                'Software Developer',
+                'PHP Developer',
+                'MySQL Database Administrator',
+                'Frontend Engineer',
+                'Front-end Developer',
+                'Front End Designer',
+                'Systems Administrator',
+                'System Admin',
+                'Linux Administrator',
+                'Backend Developer',
+                'Full Stack Developer',
+                'DevOps Engineer',
+                'Cloud Engineer',
+                'Network Technician',
+                'Helpdesk Analyst',
+                'Information Security Analyst',
+                'QA Engineer',
+                'Data Engineer',
+                'React Native Developer',
+            ]
+            as $title
+        ) {
+            source_same(true, TechnologyRoles::matches(['title' => $title]));
+        }
+    },
+);
+source_check(
+    'nontechnical roles do not qualify through industry or computer literacy',
+    function (): void {
+        foreach (
+            [
+                'Audit Assistant',
+                'Sales Manager - IT Solutions',
+                'HR Officer',
+                'Accountant',
+                'Customer Support Officer',
+                'Security Guard',
+                'Office Administrator',
+            ]
+            as $title
+        ) {
+            source_same(
+                false,
+                TechnologyRoles::matches([
+                    'title' => $title,
+                    'industry' => 'Software / ICT',
+                    'description' =>
+                        'Work with our information technology team. Computer literacy and MS Office required.',
+                ]),
+            );
+        }
+    },
+);
+source_check('generic technical titles need explicit technical duties', function (): void {
+    source_same(
+        true,
+        TechnologyRoles::matches([
+            'title' => 'Junior Developer',
+            'description' => 'Build applications with PHP and MySQL.',
+        ]),
+    );
+    source_same(
+        true,
+        TechnologyRoles::matches([
+            'title' => 'Intern',
+            'description' => 'Assist with Linux and systems administration.',
+        ]),
+    );
+    source_same(
+        false,
+        TechnologyRoles::matches([
+            'title' => 'Mechanical Engineer',
+            'description' => 'Maintain factory production machines.',
+        ]),
+    );
+});
+source_check(
+    'technology focus composes with optional OR keywords and existing preferences',
+    function (): void {
+        $settings = SettingsRepository::DEFAULTS['discovery'];
+        $settings['role_focus'] = 'technology';
+        $job = [
+            'title' => 'PHP Developer',
+            'description' => 'Build websites.',
+            'location' => 'Nairobi',
+        ];
+        $discovery = new DiscoveryService();
+        source_same(true, $discovery->matches($job, $settings));
+        $settings['keywords'] = 'MySQL, PHP';
+        source_same(true, $discovery->matches($job, $settings));
+        $settings['excluded_keywords'] = 'PHP';
+        source_same(false, $discovery->matches($job, $settings));
+        $settings['excluded_keywords'] = '';
+        source_same(
+            false,
+            $discovery->matches([...$job, 'location' => 'Kampala, Uganda'], $settings),
+        );
+        source_same(false, $discovery->matches([...$job, 'deadline' => '2000-01-01'], $settings));
+        $settings['role_focus'] = 'any';
+        $settings['keywords'] = 'IT';
+        source_same(false, $discovery->matches([...$job, 'title' => 'Audit Assistant'], $settings));
+    },
+);
 source_check('detailed feed rejects missing explicit employers and unsafe XML', function () use (
     $xml,
 ): void {
@@ -188,6 +317,39 @@ try {
         'fixture-password-12345',
     );
     $userIds[] = $otherId;
+    source_check(
+        'role focus persists and Discover filters before the result limit',
+        function () use ($otherId): void {
+            $repository = new SettingsRepository();
+            $preferences = $repository->get($otherId, 'discovery');
+            (new \App\Services\SettingsService())->save($otherId, 'discovery', [
+                ...$preferences,
+                'role_focus' => 'technology',
+            ]);
+            source_same('technology', $repository->get($otherId, 'discovery')['role_focus']);
+            $jobs = new JobRepository();
+            foreach (['PHP Developer', 'Accountant', 'Sales Manager'] as $title) {
+                (new \App\Services\JobService())->create($otherId, [
+                    'title' => $title,
+                    'employer' => 'Test-only employer',
+                    'description' => 'Test-only vacancy.',
+                    'location' => 'Nairobi',
+                    'application_method' => 'external',
+                ]);
+            }
+            $matched = $jobs->list(
+                $otherId,
+                limit: 1,
+                matches: fn(array $job): bool => (new DiscoveryService())->matches(
+                    $job,
+                    $repository->get($otherId, 'discovery'),
+                ),
+            );
+            source_same(['PHP Developer'], array_column($matched, 'title'));
+            source_same(3, count($jobs->list($otherId)));
+            source_same([], $jobs->list(2147483647, matches: fn(array $job): bool => true));
+        },
+    );
     $service = new SourcePresetService();
     $ids = $service->install($id, ['brightermonday', 'fuzu']);
     source_check('source presets are idempotent and stay inactive without Gmail', function () use (
@@ -397,6 +559,72 @@ try {
         source_same('pending', $queue->get($id, $submissionId)['status']);
         source_same('completed', $queue->get($id, $deadlineId)['status']);
     });
+    source_check(
+        'structured discovery finds later matches without exceeding the processing cap',
+        function () use ($otherId): void {
+            $repository = new SourceRepository();
+            $sourceId = $repository->ensurePreset(
+                $otherId,
+                'myjobmag',
+                SourceCatalog::get('myjobmag'),
+            );
+            $repository->health($otherId, $sourceId, true);
+            Database::connection()
+                ->prepare(
+                    'UPDATE job_sources SET last_checked_at = NULL WHERE id = ? AND user_id = ?',
+                )
+                ->execute([$sourceId, $otherId]);
+            $settings = new SettingsRepository();
+            $settings->save($otherId, 'discovery', [
+                ...$settings->get($otherId, 'discovery'),
+                'jobs_per_run' => 2,
+            ]);
+            $adapter = new class implements SourceAdapter {
+                public function identifier(): string
+                {
+                    return 'myjobmag';
+                }
+                public function validate(array $source): void {}
+                public function collect(array $source, int $limit): array
+                {
+                    source_same(200, $limit);
+                    $items = [];
+                    foreach (
+                        [
+                            ...array_fill(0, 40, 'Accountant'),
+                            'PHP Developer',
+                            'System Administrator',
+                            'Frontend Developer',
+                        ]
+                        as $title
+                    ) {
+                        $items[] = [
+                            'structured' => [
+                                'title' => $title,
+                                'employer' => 'Structured test feed employer',
+                                'description' => 'Test-only vacancy.',
+                                'location' => 'Nairobi',
+                                'application_method' => 'external',
+                            ],
+                        ];
+                    }
+                    return $items;
+                }
+            };
+            source_same(2, (new DiscoveryService(['myjobmag' => $adapter]))->run($otherId));
+            source_same(2, (new JobRepository())->discoveredToday($otherId));
+            $sourceJobs = array_values(
+                array_filter(
+                    (new JobRepository())->list($otherId),
+                    fn(array $job): bool => (int) $job['source_id'] === $sourceId,
+                ),
+            );
+            source_same(
+                ['System Administrator', 'PHP Developer'],
+                array_column($sourceJobs, 'title'),
+            );
+        },
+    );
     source_check(
         'recent feed checks defer collection without making another request',
         function () use ($otherId): void {

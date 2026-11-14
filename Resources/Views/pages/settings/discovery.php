@@ -132,6 +132,14 @@ foreach ($sources as $candidate) {
         <input type="hidden" name="section" value="discovery" />
         <div class="form-error" role="alert" hidden></div>
         <div class="form-grid">
+            <div class="field full-width">
+                <label for="discovery-role-focus">Role focus</label>
+                <select name="role_focus" id="discovery-role-focus">
+                    <option value="any">All job families</option>
+                    <option value="technology" <?= ($settings['role_focus'] ?? 'any') === 'technology' ? 'selected' : ''; ?>>Technology &amp; IT</option>
+                </select>
+                <p class="muted text-xs">Technology &amp; IT includes software development, PHP/MySQL, frontend, backend, systems administration, networking, cloud, DevOps, cybersecurity and technical support. Generic titles need technical duties.</p>
+            </div>
             <?php foreach (
     [
         'keywords' => 'Search keywords',
@@ -141,7 +149,9 @@ foreach ($sources as $candidate) {
     ]
     as $field => $name
 ) {
-    $inputField($field, $name, $settings[$field], 'text', 'Separate with commas.');
+    $inputField($field, $name, $settings[$field], 'text', $field === 'keywords'
+        ? 'Optional: narrow your role focus. Matches any comma-separated keyword as a whole word or phrase.'
+        : 'Separate with commas.');
 } ?> <?php foreach (
     [
         'sources_per_run' => 'Sources checked per run',

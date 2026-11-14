@@ -12,9 +12,11 @@ use App\Repositories\ApplicationRepository;
 use App\Repositories\DocumentRepository;
 use App\Repositories\JobRepository;
 use App\Repositories\QueueRepository;
+use App\Repositories\SettingsRepository;
 use App\Repositories\SourceRepository;
 use App\Services\AI\AiService;
 use App\Services\Discovery\PublicContent;
+use App\Services\Discovery\DiscoveryService;
 use App\Services\Documents\DocumentService;
 use App\Services\JobService;
 use App\Services\Security\Auth;
@@ -25,10 +27,18 @@ final class JobController
     public function index(Request $request): void
     {
         $discover = $request->path() === '/discover';
+        $preferences = (new SettingsRepository())->get(Auth::id(), 'discovery');
         View::render('pages/jobs', [
             'title' => $discover ? 'Discover jobs' : 'My jobs',
             'active' => $discover ? 'discover' : 'jobs',
-            'jobs' => (new JobRepository())->list(Auth::id(), $_GET),
+            'jobs' => (new JobRepository())->list(
+                Auth::id(),
+                $_GET,
+                matches: $discover
+                    ? fn(array $job): bool => (new DiscoveryService())->matches($job, $preferences)
+                    : null,
+            ),
+            'discoveryPreferences' => $preferences,
             'sources' => (new SourceRepository())->all(Auth::id()),
             'sourceCatalog' => \App\Services\Discovery\SourceCatalog::SOURCES,
             'alertCounts' => (new \App\Repositories\AlertRepository())->counts(Auth::id()),

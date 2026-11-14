@@ -22,6 +22,7 @@ final class SettingsService
         $settings = $repository->get($userId, $section);
         $rules = match ($section) {
             'discovery' => [
+                'role_focus' => ['choice', ['any', 'technology']],
                 'keywords' => ['text', 2000],
                 'excluded_keywords' => ['text', 2000],
                 'locations' => ['text', 2000],

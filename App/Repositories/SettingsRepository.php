@@ -8,6 +8,7 @@ final class SettingsRepository extends Repository
 {
     public const DEFAULTS = [
         'discovery' => [
+            'role_focus' => 'any',
             'keywords' => '',
             'excluded_keywords' => '',
             'locations' => 'Kenya',

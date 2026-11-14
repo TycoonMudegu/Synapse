@@ -1,0 +1,160 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Discovery;
+
+final class TechnologyRoles
+{
+    private const TITLE_TERMS = [
+        'IT',
+        'ICT',
+        'I.T.',
+        'information technology',
+        'information systems',
+        'head of technology',
+        'chief technology officer',
+        'chief information officer',
+        'CTO',
+        'CIO',
+        'software',
+        'programmer',
+        'programming',
+        'web developer',
+        'web development',
+        'web designer',
+        'web engineer',
+        'webmaster',
+        'frontend',
+        'front end',
+        'backend',
+        'back end',
+        'fullstack',
+        'full stack',
+        'PHP',
+        'MySQL',
+        'Laravel',
+        'Symfony',
+        'JavaScript',
+        'TypeScript',
+        'React',
+        'Vue',
+        'Angular',
+        'HTML',
+        'CSS',
+        'WordPress',
+        'Drupal',
+        'Python',
+        'Java',
+        '.NET',
+        'C#',
+        'C++',
+        'Android',
+        'iOS',
+        'mobile developer',
+        'mobile application',
+        'application developer',
+        'applications developer',
+        'application support',
+        'systems administrator',
+        'system administrator',
+        'systems admin',
+        'system admin',
+        'sysadmin',
+        'systems engineer',
+        'system engineer',
+        'systems analyst',
+        'Linux',
+        'Windows Server',
+        'network administrator',
+        'network engineer',
+        'network support',
+        'network technician',
+        'database administrator',
+        'database developer',
+        'database engineer',
+        'DBA',
+        'DevOps',
+        'DevSecOps',
+        'cloud engineer',
+        'cloud architect',
+        'cloud administrator',
+        'site reliability',
+        'infrastructure engineer',
+        'infrastructure administrator',
+        'technical support',
+        'helpdesk',
+        'help desk',
+        'service desk',
+        'desktop support',
+        'computer technician',
+        'computer science',
+        'cybersecurity',
+        'cyber security',
+        'information security',
+        'penetration tester',
+        'SOC analyst',
+        'QA engineer',
+        'QA analyst',
+        'quality assurance engineer',
+        'test engineer',
+        'data engineer',
+        'data scientist',
+        'machine learning',
+        'UI developer',
+        'UX engineer',
+        'UI designer',
+        'UX designer',
+        'UI/UX designer',
+    ];
+
+    public static function matches(array $job): bool
+    {
+        $title = $job['title'] ?? '';
+        // A technology employer or ordinary computer-literacy requirement is not a technical role.
+        if (
+            preg_match(
+                '/\b(sales|marketing|accountant|accounting|recruiter|recruitment|human resources|HR|procurement|business development)\b/iu',
+                $title,
+            )
+        ) {
+            return false;
+        }
+        if (KeywordMatcher::any($title, self::TITLE_TERMS)) {
+            return true;
+        }
+        // Generic titles need explicit technical duties in the advertisement.
+        return KeywordMatcher::any($title, [
+            'developer',
+            'engineer',
+            'technician',
+            'support specialist',
+            'support officer',
+            'administrator',
+            'intern',
+            'internship',
+            'apprentice',
+        ]) &&
+            KeywordMatcher::any($job['description'] ?? '', [
+                'software development',
+                'web development',
+                'software engineering',
+                'PHP',
+                'MySQL',
+                'JavaScript',
+                'TypeScript',
+                'React',
+                'Laravel',
+                'system administration',
+                'systems administration',
+                'network administration',
+                'Linux',
+                'Windows Server',
+                'database administration',
+                'IT support',
+                'ICT support',
+                'cybersecurity',
+                'cloud infrastructure',
+            ]);
+    }
+}

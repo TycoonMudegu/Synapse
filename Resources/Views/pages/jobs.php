@@ -16,6 +16,15 @@
     </div>
 </div>
 <?php if ($active === 'discover'): ?>
+    <?php if (($discoveryPreferences['role_focus'] ?? 'any') === 'technology'): ?>
+        <div class="notice mb-5">
+            <div>
+                <strong>Technology &amp; IT focus</strong>
+                <p>Software development, PHP/MySQL, frontend, systems administration and related technical roles. Saved opportunities outside your current preferences remain in My jobs.</p>
+                <a class="text-link" href="<?= e(app_base_path()); ?>/settings?tab=discovery">Edit discovery preferences</a>
+            </div>
+        </div>
+    <?php endif; ?>
     <?php require BASE_PATH . '/Resources/Views/components/source-catalog.php'; ?>
 <?php endif; ?>
 <section class="panel">

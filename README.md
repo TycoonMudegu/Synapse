@@ -114,6 +114,16 @@ The scheduler dispatches configured discovery, deadline checks, Gmail sync and a
 
 A fresh installation defaults to **Manual Mode**, discovery scheduling disabled, automatic analysis/preparation disabled and no Gmail connection. For this configured workspace, MyJobMag is connected and six-hour discovery scheduling is enabled; BrighterMonday and Fuzu await Gmail and their external alert subscriptions. Automatic Mode requires explicit confirmation and still requires reviewed documents, verified job instructions, an eligible match, score threshold, daily capacity and a supported permitted channel.
 
+Settings → Job discovery → Role focus can restrict discovery to **Technology & IT**: software/web development, PHP/MySQL, frontend/backend, systems administration, databases, networking, cloud/DevOps, cybersecurity and technical support. This workspace uses that focus. Optional comma-separated keywords narrow the focus using any matching whole word or phrase; `IT` does not match inside `audit`, and `front-end` matches `front end`. Nontechnical roles are excluded even at a technology employer; generic titles need explicit technical duties. Discover applies current preferences to saved results; My jobs retains all saved opportunities.
+
+To apply this focus to an existing account from the CLI while retaining its other preferences and queuing discovery:
+
+```bash
+php scripts/set-job-focus.php <user-id> technology
+```
+
+MyJobMag scans up to 200 structured feed entries before applying the per-run processing allowance, so unrelated entries at the start do not consume it. Incomplete entries are skipped with a count in `storage/logs/php.log`; no missing employer or vacancy facts are invented. Text/email extraction still obeys the processing and AI spending limits.
+
 A timed-out or interrupted send is never automatically replayed: it moves to **Awaiting external action**. Check Gmail Sent using the recorded Message-ID and record the real confirmation or withdraw it. This deliberately favours avoiding duplicate applications over unattended retries.
 
 ### Local discovery cron

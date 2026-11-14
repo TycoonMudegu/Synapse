@@ -46,8 +46,10 @@ final class MyJobMagAdapter implements SourceAdapter
             throw new HttpException('MyJobMag did not return its expected detailed RSS feed.');
         }
         $jobs = [];
+        $invalid = 0;
+        $scanned = 0;
         foreach ($feed->channel->item as $item) {
-            if (count($jobs) >= max(1, min(200, $limit))) {
+            if ($scanned++ >= 200 || count($jobs) >= max(1, min(200, $limit))) {
                 break;
             }
             $title = trim((string) $item->position);
@@ -64,9 +66,8 @@ final class MyJobMagAdapter implements SourceAdapter
                 ) ||
                 parse_url($url, PHP_URL_SCHEME) !== 'https'
             ) {
-                throw new HttpException(
-                    'The MyJobMag feed is missing explicit position, employer or source URL fields.',
-                );
+                $invalid++;
+                continue;
             }
             $expiry = trim((string) $item->expiryDate);
             $deadline = null;
@@ -74,7 +75,8 @@ final class MyJobMagAdapter implements SourceAdapter
                 try {
                     $deadline = (new \DateTimeImmutable($expiry))->format('Y-m-d');
                 } catch (\Exception) {
-                    throw new HttpException('MyJobMag returned an invalid advertised deadline.');
+                    $invalid++;
+                    continue;
                 }
             }
             $description = html_entity_decode(
@@ -83,7 +85,8 @@ final class MyJobMagAdapter implements SourceAdapter
                 'UTF-8',
             );
             if (trim($description) === '') {
-                throw new HttpException('MyJobMag returned a vacancy without a description.');
+                $invalid++;
+                continue;
             }
             $jobs[] = [
                 'structured' => [
@@ -97,6 +100,14 @@ final class MyJobMagAdapter implements SourceAdapter
                     'application_method' => 'external',
                 ],
             ];
+        }
+        if ($invalid > 0) {
+            if ($jobs === []) {
+                throw new HttpException(
+                    'MyJobMag returned no usable vacancies with explicit position, employer, description and source URL fields.',
+                );
+            }
+            error_log('MyJobMag: skipped ' . $invalid . ' incomplete or invalid feed entries.');
         }
         return $jobs;
     }
