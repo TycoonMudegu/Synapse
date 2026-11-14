@@ -104,7 +104,8 @@ final class SettingsService
         if (
             $section === 'gmail' &&
             $settings['monitor_enabled'] &&
-            $settings['alert_query'] === ''
+            $settings['alert_query'] === '' &&
+            (new \App\Repositories\SourceRepository())->emailSources($userId) === []
         ) {
             throw new HttpException(
                 'Supply a specific Gmail search query for the job alerts you want to monitor.',

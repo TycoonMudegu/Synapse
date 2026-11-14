@@ -82,6 +82,14 @@ final class IntegrationRepository extends Repository
         );
     }
 
+    public function messageId(int $userId, string $gmailId): int
+    {
+        return (int) ($this->one(
+            'SELECT id FROM application_correspondence WHERE user_id = ? AND gmail_id = ?',
+            [$userId, $gmailId],
+        )['id'] ?? 0);
+    }
+
     public function storeMessage(int $userId, array $message): bool
     {
         $statement = $this->query(

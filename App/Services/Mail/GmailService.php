@@ -106,6 +106,9 @@ final class GmailService
             'gmail.connected',
             'Connected the Gmail sending account.',
         );
+        if (str_contains($scopes, 'gmail.readonly')) {
+            (new \App\Repositories\QueueRepository())->enqueue($userId, 'gmail_sync');
+        }
     }
 
     private function tokenRequest(array $data): array
@@ -184,6 +187,7 @@ final class GmailService
             }
         }
         $repository->disconnect($userId);
+        (new \App\Services\Discovery\SourcePresetService())->refreshEmailHealth($userId);
         (new ActivityRepository())->log(
             $userId,
             'gmail.disconnected',
@@ -286,7 +290,7 @@ final class GmailService
         return implode("\r\n", $parts);
     }
 
-    public function sync(int $userId): int
+    public function sync(int $userId, ?int $sourceId = null): int
     {
         $repository = new IntegrationRepository();
         $connection =
@@ -299,6 +303,24 @@ final class GmailService
         $settings = (new SettingsRepository())->get($userId, 'gmail');
         $headers = ['Authorization: Bearer ' . $this->token($userId)];
         $messages = [];
+        $emailSources =
+            $sourceId !== null
+                ? [(new \App\Repositories\SourceRepository())->get($userId, $sourceId)]
+                : (new \App\Repositories\SourceRepository())->emailSources($userId);
+        if ($sourceId !== null) {
+            if (
+                $emailSources[0]['adapter'] !== 'email_alert' ||
+                !$emailSources[0]['permission_confirmed']
+            ) {
+                throw new HttpException('Select a permitted email-alert source.');
+            }
+            $settings['monitor_enabled'] = true;
+            $settings['response_tracking'] = false;
+            $settings['alert_query'] = '';
+        }
+        $siteQuery = \App\Services\Discovery\SourceCatalog::gmailQuery($emailSources);
+        $queries = array_filter([trim($settings['alert_query']), $siteQuery]);
+        $alertQuery = implode(' OR ', array_map(static fn($query) => '(' . $query . ')', $queries));
         if ($settings['response_tracking']) {
             foreach ($repository->threads($userId) as $thread) {
                 $data = $this->http->json(
@@ -314,13 +336,13 @@ final class GmailService
                 }
             }
         }
-        if ($settings['monitor_enabled'] && trim($settings['alert_query']) !== '') {
+        if ($settings['monitor_enabled'] && $alertQuery !== '') {
             $listing = $this->http->json(
                 'GET',
                 self::API .
                     '/messages?' .
                     http_build_query([
-                        'q' => '(' . $settings['alert_query'] . ') newer_than:30d -in:sent',
+                        'q' => '(' . $alertQuery . ') newer_than:30d -in:sent',
                         'maxResults' => 50,
                     ]),
                 headers: $headers,
@@ -332,9 +354,12 @@ final class GmailService
                         self::API . '/messages/' . rawurlencode($item['id']) . '?format=full',
                         headers: $headers,
                     ),
-                    null,
+                    $messages[$item['id']][1] ?? null,
                 ];
             }
+        }
+        if ($settings['monitor_enabled'] && $siteQuery !== '') {
+            (new \App\Repositories\SourceRepository())->emailHealth($userId, 'connected');
         }
         $count = 0;
         foreach ($messages as [$message, $applicationId]) {
@@ -346,8 +371,49 @@ final class GmailService
                 $values[strtolower($header['name'])] = $header['value'];
             }
             $body = $this->messageBody($message['payload'] ?? []);
-            $type = $applicationId ? 'response' : 'job_alert';
-            if (preg_match('/\binterview\b/i', ($values['subject'] ?? '') . ' ' . $body)) {
+            $matchedSources = [];
+            $alertNeedsReview = false;
+            if (!$applicationId) {
+                foreach ($emailSources as $source) {
+                    if (
+                        \App\Services\Discovery\SourceCatalog::senderMatches(
+                            $values['from'] ?? '',
+                            $source['preset_key'],
+                        )
+                    ) {
+                        $urls = (new \App\Services\Discovery\EmailAlertParser())->urls(
+                            $body,
+                            $source['preset_key'],
+                        );
+                        if ($urls) {
+                            $matchedSources[] = [$source, $urls];
+                        } elseif (
+                            preg_match(
+                                '/\b(?:jobs?|vacanc\w*|opportunit\w*|recommendations?|matches|roles?|positions?|hiring)\b/iu',
+                                $values['subject'] ?? '',
+                            )
+                        ) {
+                            $alertNeedsReview = true;
+                        }
+                    }
+                }
+                if (
+                    trim($settings['alert_query']) === '' &&
+                    $matchedSources === [] &&
+                    !$alertNeedsReview
+                ) {
+                    continue;
+                }
+            }
+            $type = $applicationId
+                ? 'response'
+                : ($alertNeedsReview && !$matchedSources
+                    ? 'job_alert_needs_review'
+                    : 'job_alert');
+            if (
+                $applicationId &&
+                preg_match('/\binterview\b/i', ($values['subject'] ?? '') . ' ' . $body)
+            ) {
                 $type = 'interview_needs_review';
             }
             $stored = $repository->storeMessage($userId, [
@@ -365,6 +431,18 @@ final class GmailService
                     (int) ($message['internalDate'] ?? time() * 1000) / 1000,
                 ),
             ]);
+            foreach ($matchedSources as [$source, $urls]) {
+                $messageId = $repository->messageId($userId, $message['id']);
+                if ($messageId > 0) {
+                    (new \App\Repositories\AlertRepository())->capture(
+                        $userId,
+                        $source,
+                        $messageId,
+                        ($values['subject'] ?? '') . "\n\n" . $body,
+                        $urls,
+                    );
+                }
+            }
             if ($stored) {
                 $count++;
                 (new ActivityRepository())->notify(
@@ -379,6 +457,13 @@ final class GmailService
             }
         }
         $repository->syncTime($userId);
+        if (
+            $emailSources &&
+            $settings['monitor_enabled'] &&
+            !(new SettingsRepository())->get($userId, 'automation')['paused']
+        ) {
+            (new \App\Repositories\QueueRepository())->enqueue($userId, 'discovery');
+        }
         return $count;
     }
 
@@ -392,13 +477,10 @@ final class GmailService
             $decoded = base64_decode(strtr($part['body']['data'], '-_', '+/')) ?: '';
             $content =
                 $part['mimeType'] === 'text/html'
-                    ? html_entity_decode(strip_tags($decoded), ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                    ? (new \App\Services\Discovery\EmailAlertParser())->htmlToText($decoded)
                     : $decoded;
         }
         foreach ($part['parts'] ?? [] as $child) {
-            if (($child['mimeType'] ?? '') === 'text/plain') {
-                return $this->messageBody($child);
-            }
             $content .= "\n" . $this->messageBody($child);
         }
         return trim($content);

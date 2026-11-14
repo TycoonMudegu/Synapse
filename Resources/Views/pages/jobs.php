@@ -15,20 +15,8 @@
         <a class="btn btn-primary" href="<?= e(app_base_path()); ?>/jobs/add"><?= icon('plus'); ?>Add job</a>
     </div>
 </div>
-<?php if (
-    $active === 'discover' &&
-    !array_filter($sources, fn($source) => $source['enabled'] && $source['health'] === 'connected')
-): ?>
-<div class="notice">
-    <?= icon('radio'); ?>
-    <div>
-        <strong>Choose where your opportunities come from.</strong>
-        <p>
-            Connect and test a permitted RSS feed or public JSON API to enable discovery.
-            <a class="text-link" href="<?= e(app_base_path()); ?>/settings?tab=discovery">Set up sources <?= icon('arrow-right'); ?></a>
-        </p>
-    </div>
-</div>
+<?php if ($active === 'discover'): ?>
+    <?php require BASE_PATH . '/Resources/Views/components/source-catalog.php'; ?>
 <?php endif; ?>
 <section class="panel">
     <div class="toolbar">

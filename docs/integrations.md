@@ -40,7 +40,7 @@ Primary references:
 
 ## Job feeds and APIs
 
-Supported adapters are `rss` (RSS/Atom) and `json` (normalised jobs or JSON Feed). Confirm the source's permission/terms before enabling collection. Source tests parse the actual response, check robots directives and disable failed sources. Outbound requests use HTTPS, pinned public DNS addresses, certificate verification, response/time limits and no redirects. Supply the final URL of a redirecting feed. Sources are checked no more than once per minute per user, with configured per-run/daily caps. Ordinary HTTP import limits also apply.
+Supported adapters are `rss` (RSS/Atom), `json` (normalised jobs or JSON Feed), `myjobmag` (official detailed RSS with explicit job fields) and `email_alert` (linked vacancies in authorised BrighterMonday/Fuzu emails). Confirm the source's permission/terms before enabling collection. Source tests parse the actual response, check robots directives and disable failed sources. Outbound requests use HTTPS, pinned public DNS addresses, certificate verification, response/time limits and no redirects. Supply the final URL of a redirecting feed. Sources are checked no more than once per minute per user, with configured per-run/daily caps. Ordinary HTTP import limits also apply.
 
 Normalised JSON feeds can avoid AI extraction by returning objects with `title`, `employer` and `description`. Missing fields remain unknown. The following is a **schema illustration**, not bundled vacancy data:
 
@@ -72,3 +72,29 @@ Implement `App\Services\Discovery\SourceAdapter` for an authorised job source an
 Implement `App\Services\AI\Provider` for a non-compatible AI protocol and inject/select the implementation in `AiService`. Keep schema validation, budget reservations, prompt isolation and encrypted credentials intact.
 
 `App\Services\Applications\SubmissionAdapter` defines the confirmed-submission boundary. Gmail is the supplied implementation. A future recruitment API adapter must have explicit provider authorisation and enforce the same factual verification, approval, eligibility, concurrency, daily limits and confirmation rules as `ApplicationService`. Do not mark an external browser form submitted merely because it was opened or prefilled. CAPTCHAs, OTPs and declarations always require user completion.
+
+
+## BrighterMonday, Fuzu and MyJobMag presets
+
+Settings → Job discovery and the Discover page include all three built-in sources. Add one or all three through the real configuration action. Repeated additions retain the same source and do not re-enable a source you disabled.
+
+- **MyJobMag Kenya:** imports `https://www.myjobmag.co.ke/jobsxml_by_categories.xml`, advertised on [MyJobMag's official feed page](https://www.myjobmag.co.ke/feeds/). Explicit position, company, location and expiry fields are used directly. No AI key is needed; salary and other absent facts stay unknown. The adapter checks robots/TLS/SSRF safeguards and never requests the job-page links in the feed. Kenya location preferences recognise Kenyan cities/counties without changing the original location text.
+- **BrighterMonday Kenya:** enable official job alerts using the account flow described by [BrighterMonday](https://www.brightermonday.co.ke/job-seeker), with the same email address connected to Gmail in JobFlow. External account creation and email verification are completed by you.
+- **Fuzu:** join or sign in and enable recommendations for your Kenya preferences through [Fuzu](https://www.fuzu.com/kenya/job). Use the connected Gmail account for delivery.
+
+For the two email sources, JobFlow requests read-only monitoring and searches only their configured sender domains, plus any separate user query you explicitly configure. Actual sender addresses are checked after retrieval. Direct vacancy links are extracted from plain-text or HTML email, canonicalised and deduplicated by source and URL. A multi-job email creates separate pending vacancy items. Messages without recognised links or a job-alert subject are excluded when using only the built-in source queries. Job-alert subjects with unsupported tracking links are saved for manual review.
+
+Enable read-only monitoring and connect/reconnect Gmail in Settings → Gmail. A source becomes connected only after a successful Gmail API query. Without Gmail it remains Needs connection; missing read permission is shown separately. Disconnecting Gmail invalidates the email-source health while retaining your saved monitoring preference.
+
+A configured AI screening provider structures each linked vacancy using its specific target URL and the received advertisement text. No employer page is fetched through this adapter, no missing facts are fabricated and the resulting jobs remain unverified. Missing provider configuration or unclear details are recorded against the pending alert item; use **Retry failed imports** after correcting configuration. Unsupported tracking-only links stay in the inbox for manual review. Parsed email is always untrusted input.
+
+The website itself sends the subscribed alerts. Adding a preset does not create an external account, subscribe it automatically or claim email delivery. In-app discovery notifications are real database records; outbound job-digest emails are not part of this source addition.
+
+For an existing account, the CLI installation flow is:
+
+```bash
+php scripts/migrate.php
+php scripts/add-job-sources.php <user-id>
+```
+
+This adds the three presets, tests the real MyJobMag feed, enables scheduled discovery and queues the first run. It preserves application submission mode and does not unpause a deliberately paused workspace.

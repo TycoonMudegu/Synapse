@@ -75,7 +75,7 @@ The `/tmp` database is a development/test instance, not durable production hosti
 | Application preparation | Reorders verified career entries, drafts a supported summary and British English cover letter, exports attachments, saves versions and displays original/tailored summary changes. Documents require review. |
 | Application tracking | Draft → review → approval → submission → interview/offer/rejection/withdrawal, external confirmations, interview scheduling and duplicate-send protection. |
 | Gmail | Real Google OAuth flow, encrypted token storage/refresh, sending-account selection through reconnect, signatures, self-test email, approved applications with attachments, read-only relevant-thread and job-alert synchronisation, inbox and review flags. |
-| Discovery | RSS/Atom, JSON Feed and normalised public JSON job APIs; permission confirmation, robots checks, connection validation, source CRUD/health, collection logs and configured limits. |
+| Discovery | MyJobMag detailed RSS without AI; BrighterMonday/Fuzu email-alert presets; generic RSS/Atom and JSON sources; verified health, subscriptions/setup status, deduplication, limits and collection logs. |
 | Background work | Database-backed queue, per-task/user locks, bounded retries, stale-task recovery, worker heartbeat, cron scheduler, pause controls and browser progress polling. |
 
 All external functions require their corresponding configuration; errors are surfaced rather than replaced with fake results.
@@ -112,9 +112,19 @@ Call the scheduler every minute using cron. Replace the absolute checkout path a
 
 The scheduler dispatches configured discovery, deadline checks, Gmail sync and approved submissions. New-job analysis and suitable-application preparation are queued when enabled. **Both the scheduler and worker are needed for unattended processing.** Settings never pretend to start an operating-system service. Examples are in `deploy/`.
 
-The default is **Manual Mode**, discovery scheduling disabled, automatic analysis/preparation disabled and no Gmail connection. Automatic Mode requires explicit confirmation and still requires reviewed documents, verified job instructions, an eligible match, score threshold, daily capacity and a supported permitted channel.
+A fresh installation defaults to **Manual Mode**, discovery scheduling disabled, automatic analysis/preparation disabled and no Gmail connection. For this configured workspace, MyJobMag is connected and six-hour discovery scheduling is enabled; BrighterMonday and Fuzu await Gmail and their external alert subscriptions. Automatic Mode requires explicit confirmation and still requires reviewed documents, verified job instructions, an eligible match, score threshold, daily capacity and a supported permitted channel.
 
 A timed-out or interrupted send is never automatically replayed: it moves to **Awaiting external action**. Check Gmail Sent using the recorded Message-ID and record the real confirmation or withdraw it. This deliberately favours avoiding duplicate applications over unattended retries.
+
+### Local discovery cron
+
+The local checkout has a user cron block that calls the scheduler every minute and drains only discovery, Gmail sync, deadlines and job analysis. The saved discovery interval determines when the feed is collected (currently every six hours). Existing unrelated cron entries are preserved. The template is `deploy/discovery-cron.example`.
+
+```bash
+php scripts/worker.php --drain --discovery-only
+```
+
+`--drain` handles available tasks and exits, bounded to 20 tasks or approximately 50 seconds between tasks. `--discovery-only` leaves document preparation and submission tasks for the full worker under the web service account. A cron lock prevents overlapping fallback workers.
 
 ## External configuration
 
@@ -154,7 +164,7 @@ Verified during implementation: PHP syntax, asset compilation, database migratio
 
 - Live AI responses, model-specific vision support, live permitted source collection, Google OAuth and actual email delivery require your credentials/permissions and were **not** exercised against a live account.
 - Scanned PDFs with no extractable text need an image upload to a vision model or manual transcription. There is no bundled local OCR service.
-- No BrighterMonday, Fuzu, MyJobMag, LinkedIn or government-site scraping adapter is assumed or enabled. Only the generic permitted feed/JSON adapters ship.
+- MyJobMag uses its official detailed RSS feed. BrighterMonday and Fuzu use job-alert emails you subscribe to and receive through connected Gmail; they require account subscription and read permission. No LinkedIn or government-site scraping adapter is enabled.
 - Provider-specific recruitment submission APIs and browser autofill extensions are extension points, not implemented vendor integrations. External applications use assisted drafting, attachment downloads and the original employer page; protected forms are completed by you.
 - AI-written summaries and letters require factual review. Tailoring preserves original employers, qualifications, dates, achievements and skills; it reorders them and drafts a summary rather than freely rewriting factual career history.
 - Response association uses known Gmail thread IDs. Possible interviews are flagged, not blindly converted into status changes or calendar appointments. Cross-thread guesses require review.

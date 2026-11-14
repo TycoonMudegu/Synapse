@@ -31,11 +31,17 @@ final class QueueRepository extends Repository
         return (int) $this->db->lastInsertId();
     }
 
-    public function claim(): ?array
+    public function claim(array $types = []): ?array
     {
-        return Database::transaction(function (): ?array {
+        return Database::transaction(function () use ($types): ?array {
+            $filter = $types
+                ? ' AND type IN (' . implode(', ', array_fill(0, count($types), '?')) . ')'
+                : '';
             $task = $this->one(
-                "SELECT * FROM background_tasks WHERE status = 'pending' AND available_at <= NOW() ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED",
+                "SELECT * FROM background_tasks WHERE status = 'pending' AND available_at <= NOW()" .
+                    $filter .
+                    ' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED',
+                $types,
             );
             if (!$task) {
                 return null;

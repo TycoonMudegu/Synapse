@@ -51,6 +51,7 @@ final class SettingsController
         if ($connection) {
             unset($connection['encrypted_tokens']);
         }
+        (new \App\Services\Discovery\SourcePresetService())->refreshEmailHealth(Auth::id());
         $workerFile = BASE_PATH . '/storage/worker-heartbeat';
         View::render('pages/settings', [
             'title' => 'Settings',
@@ -60,6 +61,8 @@ final class SettingsController
             'providers' => $repository->providers(Auth::id()),
             'usage' => $repository->usage(Auth::id()),
             'sources' => (new SourceRepository())->all(Auth::id()),
+            'sourceCatalog' => \App\Services\Discovery\SourceCatalog::SOURCES,
+            'alertCounts' => (new \App\Repositories\AlertRepository())->counts(Auth::id()),
             'connection' => $connection,
             'gmailConfigured' => (new GmailService())->configured(),
             'sessions' =>
@@ -96,8 +99,42 @@ final class SettingsController
         ]);
     }
 
+    public function sourcePresets(Request $request): void
+    {
+        $key = $request->string('preset');
+        $keys = $key === '' ? [] : [$key];
+        $ids = (new \App\Services\Discovery\SourcePresetService())->install(Auth::id(), $keys);
+        $message =
+            'Requested sources added. Connect Gmail and enable the official email alerts for BrighterMonday and Fuzu.';
+        if (isset($ids['myjobmag'])) {
+            $repository = new SourceRepository();
+            $source = $repository->get(Auth::id(), $ids['myjobmag']);
+            try {
+                (new DiscoveryService())->adapter('myjobmag')->validate($source);
+                $repository->health(Auth::id(), $source['id'], true);
+                $message =
+                    'MyJobMag connected and its first collection is queued. BrighterMonday and Fuzu need Gmail and official email alerts.';
+                (new QueueRepository())->enqueue(Auth::id(), 'discovery');
+            } catch (\Throwable $exception) {
+                $error =
+                    $exception instanceof HttpException
+                        ? $exception->getMessage()
+                        : 'The feed connection could not be verified.';
+                $repository->health(Auth::id(), $source['id'], false, $error);
+                $message = 'Sources added. MyJobMag needs attention: ' . $error;
+            }
+        }
+        Response::json(['ok' => true, 'message' => $message, 'reload' => true]);
+    }
+
     public function source(Request $request): void
     {
+        $id = (int) $request->string('id', '0');
+        if ($id > 0 && (new SourceRepository())->get(Auth::id(), $id)['preset_key']) {
+            throw new HttpException(
+                'Built-in sources use their verified endpoints. Manage their connection or subscription instead.',
+            );
+        }
         $url = Validator::text($request->string('url'), 'source URL', 2048, true);
         UrlGuard::validate($url);
         (new SourceRepository())->save(
@@ -132,19 +169,29 @@ final class SettingsController
                 );
             }
             try {
+                if ($source['adapter'] === 'email_alert') {
+                    (new GmailService())->sync(Auth::id(), $id);
+                }
                 (new DiscoveryService())->adapter($source['adapter'])->validate($source);
                 $repository->health(Auth::id(), $id, true);
             } catch (\Throwable $exception) {
-                $repository->health(
-                    Auth::id(),
-                    $id,
-                    false,
+                $error =
                     $exception instanceof HttpException
                         ? $exception->getMessage()
-                        : 'Connection validation failed.',
-                );
+                        : 'Connection validation failed.';
+                if ($source['adapter'] === 'email_alert') {
+                    $repository->emailHealth(Auth::id(), 'error', $error);
+                    (new \App\Services\Discovery\SourcePresetService())->refreshEmailHealth(
+                        Auth::id(),
+                    );
+                } else {
+                    $repository->health(Auth::id(), $id, false, $error);
+                }
                 throw $exception;
             }
+        } elseif ($action === 'retry_alerts' && $source['adapter'] === 'email_alert') {
+            (new \App\Repositories\AlertRepository())->retry(Auth::id(), $id);
+            (new QueueRepository())->enqueue(Auth::id(), 'discovery');
         } elseif ($action === 'delete') {
             $repository->delete(Auth::id(), $id);
         } elseif ($action === 'toggle') {

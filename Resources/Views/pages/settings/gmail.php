@@ -1,3 +1,14 @@
+<?php $emailSources = array_filter($sources, static fn ($source) => $source['adapter'] === 'email_alert' && $source['enabled']); ?>
+<?php if ($emailSources): ?>
+    <div class="notice">
+        <?= icon('radio'); ?>
+        <div>
+            <strong>Job alerts from <?= e(implode(', ', array_column($emailSources, 'name'))); ?></strong>
+            <p>Use this Gmail address for each site's official job-alert subscription. After connecting with read-only monitoring, alerts appear in your application inbox. A configured AI screening provider can turn the linked vacancies into job cards.</p>
+            <a class="text-link" href="<?= e(app_url('/settings?tab=discovery')); ?>">Manage job sources <?= icon('arrow-right'); ?></a>
+        </div>
+    </div>
+<?php endif; ?>
 <section class="panel">
     <div class="panel-header">
         <h2>Gmail connection</h2>
@@ -60,7 +71,7 @@
         <?php
 $checkField(
     'monitor_enabled',
-    'Monitor the specific job alert emails matched by my search query.',
+    'Monitor enabled job-source alerts and emails matched by my additional search query.',
     $settings['monitor_enabled'],
 );
 $checkField(
@@ -70,7 +81,7 @@ $checkField(
 );
 $inputField(
     'alert_query',
-    'Gmail query for job alerts',
+    'Additional Gmail query for job alerts (optional with enabled sources)',
     $settings['alert_query'],
     'text',
     'Use specific senders or a dedicated label. Only matching messages from the last 30 days are imported.',

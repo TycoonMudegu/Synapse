@@ -30,6 +30,11 @@ final class JobController
             'active' => $discover ? 'discover' : 'jobs',
             'jobs' => (new JobRepository())->list(Auth::id(), $_GET),
             'sources' => (new SourceRepository())->all(Auth::id()),
+            'sourceCatalog' => \App\Services\Discovery\SourceCatalog::SOURCES,
+            'alertCounts' => (new \App\Repositories\AlertRepository())->counts(Auth::id()),
+            'gmailConnected' => (bool) (new \App\Repositories\IntegrationRepository())->connection(
+                Auth::id(),
+            ),
         ]);
     }
 

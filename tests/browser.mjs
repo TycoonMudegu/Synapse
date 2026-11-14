@@ -102,6 +102,21 @@ try {
         await expect(page.locator('h1')).toBeVisible();
     }
     pass('all application and settings pages render successfully');
+    await page.goto(`${base}/settings?tab=discovery`);
+    await expect(page.getByRole('heading', { name: 'MyJobMag Kenya', exact: true })).toBeVisible();
+    await expect(
+        page.getByRole('heading', { name: 'BrighterMonday Kenya', exact: true }),
+    ).toBeVisible();
+    const fuzuCard = page
+        .locator('article')
+        .filter({ has: page.getByRole('heading', { name: 'Fuzu', exact: true }) });
+    await fuzuCard.getByRole('button', { name: 'Add source', exact: true }).click();
+    await expect(fuzuCard.getByText('Needs connection', { exact: true })).toBeVisible();
+    await expect(fuzuCard.getByRole('link', { name: 'Connect Gmail', exact: true })).toBeVisible();
+    await page.goto(`${base}/settings?tab=gmail`);
+    await expect(page.getByText('Job alerts from Fuzu', { exact: true })).toBeVisible();
+    pass('built-in sources save and show honest Gmail setup requirements');
+
     await page.goto(`${base}/profile`);
     await page
         .getByLabel('Professional summary', { exact: true })
@@ -249,12 +264,25 @@ try {
     ).toBe(true);
     await page.screenshot({ path: 'tests/.runtime/dashboard-mobile.png', fullPage: true });
     pass('mobile navigation and dashboard fit a 390px screen');
-    for (const route of ['/jobs/add', '/profile', '/applications', '/settings?tab=ai']) {
+    for (const route of [
+        '/jobs/add',
+        '/profile',
+        '/applications',
+        '/settings?tab=ai',
+        '/discover',
+        '/settings?tab=discovery',
+        '/settings?tab=gmail',
+    ]) {
         await page.goto(`${base}${route}`);
-        expect(
-            await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-            route,
-        ).toBe(true);
+        const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+        if (!fits) {
+            console.log(await page.evaluate(() => [...document.querySelectorAll('body *')]
+                .filter((element) => element.getBoundingClientRect().right > window.innerWidth + 1)
+                .slice(0, 12)
+                .map((element) => ({ tag: element.tagName, class: element.className, width: Math.round(element.getBoundingClientRect().width), text: element.textContent.trim().slice(0, 70) }))));
+            await page.screenshot({ path: 'tests/.runtime/mobile-overflow.png', fullPage: true });
+        }
+        expect(fits, route).toBe(true);
     }
     pass('core forms remain within the mobile viewport');
     await page.getByRole('button', { name: 'Open navigation', exact: true }).click();

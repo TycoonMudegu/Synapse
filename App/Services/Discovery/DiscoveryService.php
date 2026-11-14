@@ -19,6 +19,8 @@ final class DiscoveryService
     {
         return match ($type) {
             'rss' => new FeedAdapter(),
+            'myjobmag' => new MyJobMagAdapter(),
+            'email_alert' => new EmailAlertAdapter(),
             'json' => new JsonFeedAdapter(),
             default => throw new HttpException('This source has no supported adapter.'),
         };
@@ -48,7 +50,7 @@ final class DiscoveryService
         $enabled = $sources->enabled($userId, (int) $settings['sources_per_run']);
         if ($enabled === []) {
             throw new HttpException(
-                'Add and successfully test a permitted RSS or JSON source in Settings → Job discovery.',
+                'Test a permitted feed or connect Gmail for the requested email-alert sources in Settings → Job discovery.',
             );
         }
         $queue = new QueueRepository();
@@ -62,14 +64,15 @@ final class DiscoveryService
             if ($processed >= $limit) {
                 break;
             }
-            $checked++;
             try {
                 if (
+                    $source['adapter'] !== 'email_alert' &&
                     $source['last_checked_at'] &&
                     strtotime($source['last_checked_at']) > time() - 60
                 ) {
                     continue;
                 }
+                $checked++;
                 $items = $this->adapter($source['adapter'])->collect($source, $limit - $processed);
                 $sources->health($userId, (int) $source['id'], true);
             } catch (\Throwable $exception) {
@@ -92,14 +95,28 @@ final class DiscoveryService
                         (new AiService())->run(
                             $userId,
                             'extract_job',
-                            ['advertisement' => $item['text']],
+                            ['advertisement' => $item['text'], 'target_url' => $item['url'] ?? ''],
                             runBudget: max(0, (float) $settings['run_budget_usd'] - $spent),
                         );
-                    if (
-                        $job['title'] === '' ||
-                        $job['employer'] === '' ||
-                        !$this->matches($job, $settings)
-                    ) {
+                    if ($job['title'] === '' || $job['employer'] === '') {
+                        if (isset($item['alert_item_id'])) {
+                            (new \App\Repositories\AlertRepository())->finish(
+                                $userId,
+                                $item['alert_item_id'],
+                                'needs_review',
+                                error: 'The alert does not include enough facts for this vacancy. Review the original email.',
+                            );
+                        }
+                        continue;
+                    }
+                    if (!$this->matches($job, $settings)) {
+                        if (isset($item['alert_item_id'])) {
+                            (new \App\Repositories\AlertRepository())->finish(
+                                $userId,
+                                $item['alert_item_id'],
+                                'filtered',
+                            );
+                        }
                         continue;
                     }
                     $job['original_url'] = $job['original_url'] ?? ($item['url'] ?? '');
@@ -108,13 +125,43 @@ final class DiscoveryService
                     $job['poster_document_id'] = null;
                     $result = (new JobService())->create($userId, $job);
                     $found += (int) !$result['duplicate'];
+                    if (isset($item['alert_item_id'])) {
+                        (new \App\Repositories\AlertRepository())->finish(
+                            $userId,
+                            $item['alert_item_id'],
+                            'processed',
+                            $result['id'],
+                        );
+                    }
                 } catch (\Throwable $exception) {
+                    if (isset($item['alert_item_id'])) {
+                        (new \App\Repositories\AlertRepository())->finish(
+                            $userId,
+                            $item['alert_item_id'],
+                            'error',
+                            error: $exception instanceof HttpException
+                                ? $exception->getMessage()
+                                : 'The alert could not be imported.',
+                        );
+                    }
                     $errors[] =
                         $exception instanceof HttpException
                             ? $exception->getMessage()
                             : 'A vacancy could not be processed.';
                 }
             }
+        }
+        if ($checked === 0) {
+            $queue->endRun(
+                $run,
+                'deferred',
+                0,
+                error: 'Sources were checked recently; retry after one minute.',
+            );
+            throw new HttpException(
+                'Sources were checked recently. Collection will retry after one minute.',
+                429,
+            );
         }
         $queue->endRun(
             $run,
@@ -135,7 +182,13 @@ final class DiscoveryService
 
     public function matches(array $job, array $settings): bool
     {
-        $haystack = mb_strtolower(($job['title'] ?? '') . ' ' . ($job['description'] ?? ''));
+        $haystack = mb_strtolower(
+            ($job['title'] ?? '') .
+                ' ' .
+                ($job['description'] ?? '') .
+                ' ' .
+                ($job['industry'] ?? ''),
+        );
         $keywords = array_filter(array_map('trim', explode(',', $settings['keywords'])));
         if (
             $keywords &&
@@ -186,10 +239,7 @@ final class DiscoveryService
             $locations &&
             !array_filter(
                 $locations,
-                fn($place) => str_contains(
-                    mb_strtolower($job['location'] ?? ''),
-                    mb_strtolower($place),
-                ),
+                fn($place) => LocationMatcher::matches($job['location'] ?? '', $place),
             )
         ) {
             return false;

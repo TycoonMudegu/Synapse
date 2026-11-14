@@ -8,6 +8,40 @@ use App\Core\HttpException;
 
 final class SourceRepository extends Repository
 {
+    public function ensurePreset(int $userId, string $key, array $definition): int
+    {
+        $email = $definition['adapter'] === 'email_alert';
+        $this->query(
+            'INSERT INTO job_sources (user_id, preset_key, name, adapter, url, permission_confirmed, enabled, health) VALUES (?, ?, ?, ?, ?, 1, ?, ?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)',
+            [
+                $userId,
+                $key,
+                $definition['name'],
+                $definition['adapter'],
+                $definition['url'],
+                (int) $email,
+                $email ? 'needs_connection' : 'untested',
+            ],
+        );
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function emailSources(int $userId): array
+    {
+        return $this->rows(
+            "SELECT * FROM job_sources WHERE user_id = ? AND adapter = 'email_alert' AND preset_key IS NOT NULL AND enabled = 1 AND permission_confirmed = 1 ORDER BY id",
+            [$userId],
+        );
+    }
+
+    public function emailHealth(int $userId, string $health, ?string $error = null): void
+    {
+        $this->query(
+            "UPDATE job_sources SET health = ?, last_error = ?, last_checked_at = NOW(), last_success_at = CASE WHEN ? = 'connected' THEN NOW() ELSE last_success_at END WHERE user_id = ? AND adapter = 'email_alert'",
+            [$health, $error ? mb_substr($error, 0, 500) : null, $health, $userId],
+        );
+    }
+
     public function all(int $userId): array
     {
         return $this->rows('SELECT * FROM job_sources WHERE user_id = ? ORDER BY id DESC', [

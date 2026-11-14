@@ -17,10 +17,12 @@ use App\Services\Mail\GmailService;
 
 final class Worker
 {
+    public function __construct(private readonly array $taskTypes = []) {}
+
     public function tick(): bool
     {
         $queue = new QueueRepository();
-        $task = $queue->claim();
+        $task = $queue->claim($this->taskTypes);
         file_put_contents(BASE_PATH . '/storage/worker-heartbeat', (string) time(), LOCK_EX);
         if (!$task) {
             return false;
@@ -55,6 +57,10 @@ final class Worker
             };
             $queue->complete($task);
         } catch (\Throwable $exception) {
+            if ($exception instanceof HttpException && $exception->status === 429) {
+                $queue->defer($task);
+                return true;
+            }
             $message =
                 $exception instanceof HttpException
                     ? $exception->getMessage()
@@ -112,6 +118,13 @@ final class Worker
             $count = (new GmailService())->sync($userId);
             $queue->endRun($run, 'completed', $count);
         } catch (\Throwable $exception) {
+            (new \App\Repositories\SourceRepository())->emailHealth(
+                $userId,
+                'error',
+                $exception instanceof HttpException
+                    ? $exception->getMessage()
+                    : 'Gmail synchronisation failed.',
+            );
             $queue->endRun(
                 $run,
                 'failed',

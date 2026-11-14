@@ -146,7 +146,7 @@
         </section>
         <section class="panel">
             <div class="panel-header"><h2>The essentials</h2></div>
-            <div class="automation-summary">
+            <div class="automation-summary"><div class="definition-row"><span>Source</span><strong><?= e($job['source_name'] ?: 'Manually added'); ?></strong></div>
                 <div class="definition-row">
                     <span>Deadline</span>
                     <strong><?= e(short_date($job['deadline'])); ?></strong>

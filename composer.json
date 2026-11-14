@@ -24,7 +24,7 @@
         ]
     },
     "scripts": {
-        "test": "php tests/urls.php && php tests/run.php",
+        "test": "php tests/urls.php && php tests/run.php && php tests/sources.php",
         "lint": "find App Bootstrap Routes Resources/Views Public scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l && php -l index.php"
     },
     "config": {

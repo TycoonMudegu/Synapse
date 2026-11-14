@@ -1,16 +1,11 @@
-<div class="notice">
-    <?= icon('radio'); ?>
-    <div>
-        <strong>Real sources. Permitted access.</strong>
-        <p>
-            RSS/Atom and public JSON feeds are supported. An untested source is never shown as
-            active. Use manual imports for websites that restrict automated access.
-        </p>
-    </div>
-</div>
+<?php
+$gmailConnected = (bool) $connection;
+require BASE_PATH . '/Resources/Views/components/source-catalog.php';
+$customSources = array_filter($sources, static fn ($source) => !$source['preset_key']);
+?>
 <section class="panel">
-    <div class="panel-header"><h2>Job sources</h2></div>
-    <?php if (!$sources):
+    <div class="panel-header"><h2>Additional feeds & APIs</h2></div>
+    <?php if (!$customSources):
     empty_state(
         'radio',
         'Choose where to look',
@@ -30,7 +25,7 @@ else:
             </thead>
             <tbody>
                 <?php foreach (
-    $sources
+    $customSources
     as $source
 ): ?>
                 <tr>

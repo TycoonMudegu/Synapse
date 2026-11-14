@@ -2,7 +2,7 @@
 
 Tests use synthetic fixtures only in a database ending in `_test`. No job, profile, document or submission fixture is seeded into the application database. External side effects are not performed by automated tests.
 
-Current result: **84 PHP checks passed** (63 application checks and 21 installation-URL checks), together with the asset build and PHP syntax checks. The **20 Chromium checks pass in both modes**: the PHP development server at a root URL and an isolated Apache/mod_php installation under `/autoaplicator/`.
+Current result: **102 PHP checks passed** (63 application checks, 21 installation-URL checks and 18 source integration checks), together with the asset build and PHP syntax checks. The browser workflow now includes **21 checks** with the source setup cards. The earlier 20-check workflow passed in both modes: the PHP development server at a root URL and an isolated Apache/mod_php installation under `/autoaplicator/`.
 
 ## Automated checks
 
@@ -26,6 +26,13 @@ Run commands and database setup are in README.md. Browser tests use the local br
 
 ## Not live-verified
 
-No provider keys, Google account or authorised real job feed were supplied. Live AI/vision quality, vendor-specific parameter support, OAuth consent/token refresh, Gmail sending/reading, source terms/access and production cron/process supervision therefore require configuration and live verification. No application has been submitted by this implementation session.
+No provider keys or Google account were supplied. Live AI/vision quality, vendor-specific parameter support, OAuth consent/token refresh and Gmail sending/reading require configuration and live verification. MyJobMag’s advertised RSS feed was verified through the application safeguards and 25 real vacancies were imported into the requested account. Local discovery cron was installed with existing schedules preserved. No application has been submitted by this implementation session.
 
-This code ships generic feed/JSON source adapters and Gmail email submission. Recruitment API vendors and browser form-fill extensions are not supplied. Scanned-PDF OCR without a vision-image workflow and cross-thread reply classification are not claimed as complete integrations.
+This code ships generic feed/JSON adapters, a live-tested official MyJobMag detailed RSS adapter, BrighterMonday/Fuzu email-alert ingestion and Gmail email submission. Recruitment API vendors and browser form-fill extensions are not supplied. Scanned-PDF OCR without a vision-image workflow and cross-thread reply classification are not claimed as complete integrations.
+
+
+## Requested source integrations
+
+`tests/sources.php` covers explicit MyJobMag field parsing, unknown facts, XML limits, source URL restrictions, Kenyan location matching, domain impersonation rejection, HTML link preservation, per-link deduplication, preset idempotency, Gmail scope/connection requirements, mocked read-only email ingestion, user ownership, per-vacancy pending records and retryable missing-AI failures. These Gmail fixtures run only in `_test` and do not prove a live Gmail connection.
+
+The browser workflow also verifies that all three source cards render, adding Fuzu persists and Needs connection is displayed until Gmail is configured. No live subscription or BrighterMonday/Fuzu alert delivery is claimed.

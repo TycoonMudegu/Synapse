@@ -41,7 +41,7 @@
             <select name="type" aria-label="Message type">
                 <option value="">All message types</option>
                 <?php foreach (
-    ['job_alert', 'response', 'interview_needs_review']
+    ['job_alert', 'job_alert_needs_review', 'response', 'interview_needs_review']
     as $type
 ): ?>
                 <option value="<?= e($type); ?>" <?= ($_GET['type'] ?? '') === $type ? 'selected' : ''; ?>><?= e(label($type)); ?></option>

@@ -1,0 +1,3 @@
+# Discovery-only fallback for a local checkout; preserve existing crontab entries.
+# Run the full document/submission worker separately as the web service account.
+* * * * * cd /var/www/jobflow && /usr/bin/flock -n storage/run/discovery-cron.lock /bin/sh -c '/usr/bin/php scripts/schedule.php && /usr/bin/php scripts/worker.php --drain --discovery-only' >> storage/logs/scheduler.log 2>&1

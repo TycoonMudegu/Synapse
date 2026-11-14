@@ -38,7 +38,7 @@ final class AiService
             'test' => 'Return status connected.',
             'extract_job',
             'poster'
-                => 'Extract the vacancy. Use empty strings or null for missing facts. Never infer salary, deadlines, employer contacts or eligibility. Put ambiguities in uncertainties. Dates must be YYYY-MM-DD. Read the image if supplied.',
+                => 'Extract the vacancy. Use empty strings or null for missing facts. Never infer salary, deadlines, employer contacts or eligibility. Put ambiguities in uncertainties. Dates must be YYYY-MM-DD. Read the image if supplied. If target_url is supplied, extract only the vacancy associated with that URL; never merge multiple vacancies from an alert. If that vacancy lacks facts, leave those fields empty and explain the uncertainty.',
             'screening'
                 => 'Compare the vacancy against the verified profile using the supplied scoring weights. Assess every mandatory condition separately. Unknown evidence means uncertain, not eligible. Explain evidence and separate missing from unknown facts. Never treat a high score as proof of eligibility.',
             'tailoring'

@@ -61,6 +61,7 @@ $router->add('POST', '/api/applications/{id}/letter', [ApplicationController::cl
 $router->add('POST', '/api/settings', [SettingsController::class, 'save']);
 $router->add('POST', '/api/providers', [SettingsController::class, 'provider']);
 $router->add('POST', '/api/providers/{id}/test', [SettingsController::class, 'testProvider']);
+$router->add('POST', '/api/sources/presets', [SettingsController::class, 'sourcePresets']);
 $router->add('POST', '/api/sources', [SettingsController::class, 'source']);
 $router->add('POST', '/api/sources/{id}', [SettingsController::class, 'sourceAction']);
 $router->add('POST', '/api/security/password', [SettingsController::class, 'password']);
