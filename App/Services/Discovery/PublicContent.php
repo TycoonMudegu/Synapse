@@ -10,26 +10,37 @@ use App\Services\Security\UrlGuard;
 
 final class PublicContent
 {
+    private array $robotsCache = [];
+
     public function __construct(private readonly HttpClient $http = new HttpClient()) {}
 
     public function fetch(string $url, bool $checkRobots = true): string
     {
         $resolved = UrlGuard::validate($url);
         if ($checkRobots) {
-            $robots = $this->http->request(
-                'GET',
-                'https://' . $resolved['host'] . '/robots.txt',
-                timeout: 15,
-                maxBytes: 262144,
-            );
+            $robots =
+                $this->robotsCache[$resolved['host']] ??
+                $this->http->request(
+                    'GET',
+                    'https://' . $resolved['host'] . '/robots.txt',
+                    timeout: 15,
+                    maxBytes: 262144,
+                );
             if (!in_array($robots['status'], [200, 404, 410], true)) {
                 throw new HttpException(
                     'Robots permissions could not be verified for this website. Paste the advertisement text instead.',
                 );
             }
+            $this->robotsCache[$resolved['host']] = $robots;
             if (
                 $robots['status'] === 200 &&
-                !$this->allowed($robots['body'], $resolved['parts']['path'] ?? '/')
+                !$this->allowed(
+                    $robots['body'],
+                    ($resolved['parts']['path'] ?? '/') .
+                        (isset($resolved['parts']['query'])
+                            ? '?' . $resolved['parts']['query']
+                            : ''),
+                )
             ) {
                 throw new HttpException(
                     'This website disallows automated access to that page. Paste the advertisement text instead.',

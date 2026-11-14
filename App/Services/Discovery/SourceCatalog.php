@@ -19,27 +19,36 @@ final class SourceCatalog
         ],
         'brightermonday' => [
             'name' => 'BrighterMonday Kenya',
-            'adapter' => 'email_alert',
-            'url' => 'https://www.brightermonday.co.ke/job-seeker',
+            'adapter' => 'brightermonday_public',
+            'url' => 'https://www.brightermonday.co.ke/jobs/software-data',
             'setup_url' => 'https://www.brightermonday.co.ke/job-seeker',
             'sender_domain' => 'brightermonday.co.ke',
             'description' =>
-                'Enable job alerts in your BrighterMonday account using the Gmail address you connect to JobFlow.',
+                'Collect public Software & Data vacancies directly. No Gmail or AI key is required.',
         ],
         'fuzu' => [
             'name' => 'Fuzu',
-            'adapter' => 'email_alert',
-            'url' => 'https://www.fuzu.com/kenya/job',
+            'adapter' => 'fuzu_public',
+            'url' => 'https://www.fuzu.com/kenya/job/computers-software-development',
             'setup_url' => 'https://www.fuzu.com/kenya/job',
             'sender_domain' => 'fuzu.com',
             'description' =>
-                'Join or sign in to Fuzu, set your Kenya job preferences and enable email recommendations.',
+                'Collect public IT and software vacancies directly when the site accepts requests from this server. No Gmail or AI key is required.',
         ],
     ];
 
-    public static function get(string $key): array
+    public static function get(string $key, string $mode = 'public'): array
     {
-        return self::SOURCES[$key] ?? throw new HttpException('Unknown job source.');
+        $definition = self::SOURCES[$key] ?? throw new HttpException('Unknown job source.');
+        if ($mode === 'email' && isset($definition['sender_domain'])) {
+            $definition['adapter'] = 'email_alert';
+            $definition['url'] = $definition['setup_url'];
+            $definition['description'] =
+                'Import the site’s subscribed email alerts through connected Gmail monitoring. AI screening is required to extract vacancies.';
+        } elseif ($mode !== 'public') {
+            throw new HttpException('Unsupported collection mode.');
+        }
+        return $definition;
     }
 
     public static function gmailQuery(array $sources): string

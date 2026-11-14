@@ -111,11 +111,23 @@ try {
         .locator('article')
         .filter({ has: page.getByRole('heading', { name: 'Fuzu', exact: true }) });
     await fuzuCard.getByRole('button', { name: 'Add source', exact: true }).click();
+    await expect(fuzuCard.getByText('Untested', { exact: true })).toBeVisible();
+    await expect(
+        fuzuCard.getByRole('button', { name: 'Check public pages', exact: true }),
+    ).toBeVisible();
+    await expect(fuzuCard.getByRole('link', { name: 'Connect Gmail', exact: true })).toHaveCount(0);
+    await fuzuCard.getByRole('button', { name: 'Use email alerts', exact: true }).click();
     await expect(fuzuCard.getByText('Needs connection', { exact: true })).toBeVisible();
     await expect(fuzuCard.getByRole('link', { name: 'Connect Gmail', exact: true })).toBeVisible();
     await page.goto(`${base}/settings?tab=gmail`);
     await expect(page.getByText('Job alerts from Fuzu', { exact: true })).toBeVisible();
-    pass('built-in sources save and show honest Gmail setup requirements');
+    await page.goto(`${base}/settings?tab=discovery`);
+    await fuzuCard.getByRole('button', { name: 'Use public pages', exact: true }).click();
+    await expect(fuzuCard.getByText('Untested', { exact: true })).toBeVisible();
+    await expect(
+        fuzuCard.getByRole('button', { name: 'Check public pages', exact: true }),
+    ).toBeVisible();
+    pass('public sources save without Gmail and optional email mode switches persist');
 
     await page.goto(`${base}/profile`);
     await page

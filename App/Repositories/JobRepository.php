@@ -59,6 +59,15 @@ final class JobRepository extends Repository
             throw new HttpException('Job not found.', 404);
     }
 
+    public function duplicateId(int $userId, array $normalised): ?int
+    {
+        $existing = $this->one(
+            'SELECT id FROM job_listings WHERE user_id = ? AND (fingerprint = ? OR canonical_hash = ?) LIMIT 1',
+            [$userId, $normalised['fingerprint'], $normalised['canonical_hash']],
+        );
+        return $existing ? (int) $existing['id'] : null;
+    }
+
     public function insert(int $userId, array $data): array
     {
         $fields = [
@@ -100,11 +109,11 @@ final class JobRepository extends Repository
             if (($exception->errorInfo[1] ?? null) !== 1062) {
                 throw $exception;
             }
-            $existing = $this->one(
-                'SELECT id FROM job_listings WHERE user_id = ? AND (fingerprint = ? OR canonical_hash = ?) LIMIT 1',
-                [$userId, $data['fingerprint'], $data['canonical_hash']],
-            );
-            return ['id' => (int) ($existing['id'] ?? 0), 'duplicate' => true];
+            $existing = $this->duplicateId($userId, $data);
+            if ($existing === null) {
+                throw $exception;
+            }
+            return ['id' => $existing, 'duplicate' => true];
         }
     }
 

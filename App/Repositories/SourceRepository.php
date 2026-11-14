@@ -34,6 +34,23 @@ final class SourceRepository extends Repository
         );
     }
 
+    public function collectionMode(int $userId, int $id, array $definition): void
+    {
+        $this->get($userId, $id);
+        $email = $definition['adapter'] === 'email_alert';
+        $this->query(
+            'UPDATE job_sources SET adapter = ?, url = ?, enabled = ?, health = ?, last_error = NULL, last_checked_at = NULL, last_success_at = NULL WHERE user_id = ? AND id = ?',
+            [
+                $definition['adapter'],
+                $definition['url'],
+                (int) $email,
+                $email ? 'needs_connection' : 'untested',
+                $userId,
+                $id,
+            ],
+        );
+    }
+
     public function emailHealth(int $userId, string $health, ?string $error = null): void
     {
         $this->query(

@@ -2,7 +2,7 @@
 
 Tests use synthetic fixtures only in a database ending in `_test`. No job, profile, document or submission fixture is seeded into the application database. External side effects are not performed by automated tests.
 
-Current result: **110 PHP checks passed** (63 application checks, 21 installation-URL checks and 26 source integration checks), together with the asset build and PHP syntax checks. The browser workflow now includes **22 checks** with source setup and persistent technology-role filtering. The earlier 20-check workflow passed in both modes: the PHP development server at a root URL and an isolated Apache/mod_php installation under `/autoaplicator/`.
+Current result: **118 PHP checks passed** (63 application checks, 21 installation-URL checks and 34 source integration checks), together with the asset build and PHP syntax checks. The browser workflow includes **22 checks**, including public/email source-mode switching without external requests and persistent technology-role filtering. The earlier 20-check workflow passed in both modes: the PHP development server at a root URL and an isolated Apache/mod_php installation under `/autoaplicator/`.
 
 ## Automated checks
 
@@ -26,9 +26,9 @@ Run commands and database setup are in README.md. Browser tests use the local br
 
 ## Not live-verified
 
-No provider keys or Google account were supplied. Live AI/vision quality, vendor-specific parameter support, OAuth consent/token refresh and Gmail sending/reading require configuration and live verification. MyJobMag’s advertised RSS feed was verified through the application safeguards. Applying Technology & IT focus imported five additional matching vacancies; Discover now shows six matching saved roles, with previous unrelated jobs retained in My jobs. Local discovery cron was installed with existing schedules preserved. No application has been submitted by this implementation session.
+No provider keys or Google account were supplied. Live AI/vision quality, vendor-specific parameter support, OAuth consent/token refresh and Gmail sending/reading require configuration and live verification. MyJobMag’s advertised RSS feed supplies six matching saved IT roles. A live BrighterMonday public collection imported four additional matching vacancies without Gmail or AI; Discover now shows ten matching opportunities, with previous unrelated jobs retained in My jobs. Fuzu returned HTTP 403 through both the ordinary request client and Chromium, including after allowing browser JavaScript to run. Local discovery cron remains installed. No application has been submitted by this implementation session.
 
-This code ships generic feed/JSON adapters, a live-tested official MyJobMag detailed RSS adapter, BrighterMonday/Fuzu email-alert ingestion and Gmail email submission. Recruitment API vendors and browser form-fill extensions are not supplied. Scanned-PDF OCR without a vision-image workflow and cross-thread reply classification are not claimed as complete integrations.
+This code ships generic feed/JSON adapters, live-tested MyJobMag RSS and BrighterMonday public-page collectors, a Fuzu public-page collector currently blocked with HTTP 403, optional email-alert ingestion and Gmail email submission. Recruitment API vendors and browser form-fill extensions are not supplied. Scanned-PDF OCR without a vision-image workflow and cross-thread reply classification are not claimed as complete integrations.
 
 
 ## Requested source integrations
@@ -37,4 +37,6 @@ This code ships generic feed/JSON adapters, a live-tested official MyJobMag deta
 
 Technology-focus checks cover the requested job families, rejection of nontechnical roles and incidental computer literacy, whole-word and hyphenated-phrase matching, optional OR keywords, exclusions, location and expiry checks, settings persistence and account ownership. A structured-feed fixture places 40 unrelated entries before technical jobs and verifies that two matching jobs are imported under a two-job processing cap. A malformed entry cannot hide later valid feed items. Discover filters before limiting results and retains unrelated saved jobs in My jobs.
 
-The browser workflow also verifies that all three source cards render, adding Fuzu persists and Needs connection is displayed until Gmail is configured. No live subscription or BrighterMonday/Fuzu alert delivery is claimed.
+Public-source checks cover JSON-LD employer/address graph resolution, whole-field extraction, script removal, missing facts and ambiguous postings, canonical same-host detail links, request caps, per-host robots caching, query restrictions, immediate blocked-response failure, public-mode defaults, account ownership, mode persistence, filtering and duplicate prevention without Gmail or AI. Already saved structured vacancies do not consume the processing allowance: a regression check imports a later new vacancy under a one-job cap. Fuzu parser fixtures do not prove live collection: the actual site returns HTTP 403 from this server.
+
+The browser workflow verifies that all three source cards render, adding Fuzu defaults to public mode without asking for Gmail, switching to email mode displays Needs connection, and switching back retains a public source. No live subscription or BrighterMonday/Fuzu alert delivery is claimed.

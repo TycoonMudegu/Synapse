@@ -21,23 +21,32 @@ if (!(new UserRepository())->byId($userId)) {
 }
 $ids = (new SourcePresetService())->install($userId);
 $sources = new SourceRepository();
-$source = $sources->get($userId, $ids['myjobmag']);
-try {
-    (new DiscoveryService())->adapter('myjobmag')->validate($source);
-    $sources->health($userId, $source['id'], true);
-    echo "MyJobMag: official detailed RSS connection verified.\n";
-} catch (Throwable $exception) {
-    $message =
-        $exception instanceof \App\Core\HttpException
-            ? $exception->getMessage()
-            : 'Feed validation failed.';
-    $sources->health($userId, $source['id'], false, $message);
-    echo 'MyJobMag: ' . $message . PHP_EOL;
+foreach ($ids as $key => $sourceId) {
+    if (in_array('--public', $argv, true) && $key !== 'myjobmag') {
+        (new SourcePresetService())->selectMode($userId, $sourceId, 'public');
+    }
+    $source = $sources->get($userId, $sourceId);
+    if ($source['adapter'] === 'email_alert') {
+        echo $source['name'] .
+            ": optional email mode retained; Gmail and subscriptions are required. Use --public to switch.\n";
+        continue;
+    }
+    try {
+        (new DiscoveryService())->adapter($source['adapter'])->validate($source);
+        $sources->health($userId, $sourceId, true);
+        echo $source['name'] . ": public connection and vacancy fields verified.\n";
+    } catch (Throwable $exception) {
+        $message =
+            $exception instanceof \App\Core\HttpException
+                ? $exception->getMessage()
+                : 'Public connection validation failed.';
+        $sources->health($userId, $sourceId, false, $message);
+        echo $source['name'] . ': ' . $message . PHP_EOL;
+    }
 }
 $repository = new SettingsRepository();
 $automation = $repository->get($userId, 'automation');
 $automation['discovery_enabled'] = true;
 $repository->save($userId, 'automation', $automation);
 (new QueueRepository())->enqueue($userId, 'discovery');
-echo "BrighterMonday and Fuzu: added; Gmail and official subscriptions are required.\n";
 echo "Scheduled discovery enabled. The existing application submission mode is preserved.\n";

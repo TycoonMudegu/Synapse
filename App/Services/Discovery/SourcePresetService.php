@@ -11,16 +11,16 @@ use App\Repositories\SourceRepository;
 
 final class SourcePresetService
 {
-    public function install(int $userId, array $keys = []): array
+    public function install(int $userId, array $keys = [], string $mode = 'public'): array
     {
         $keys = $keys ?: array_keys(SourceCatalog::SOURCES);
         $sources = new SourceRepository();
         $ids = [];
         foreach ($keys as $key) {
-            $definition = SourceCatalog::get($key);
+            $definition = SourceCatalog::get($key, $key === 'myjobmag' ? 'public' : $mode);
             $ids[$key] = $sources->ensurePreset($userId, $key, $definition);
         }
-        if (array_intersect($keys, ['brightermonday', 'fuzu'])) {
+        if ($sources->emailSources($userId) !== []) {
             $repository = new SettingsRepository();
             $settings = $repository->get($userId, 'gmail');
             $settings['monitor_enabled'] = true;
@@ -33,6 +33,34 @@ final class SourcePresetService
             'Added the requested job-source presets. Connection checks are required before collection.',
         );
         return $ids;
+    }
+
+    public function selectMode(int $userId, int $id, string $mode): void
+    {
+        $repository = new SourceRepository();
+        $source = $repository->get($userId, $id);
+        if (!in_array($source['preset_key'], ['brightermonday', 'fuzu'], true)) {
+            throw new \App\Core\HttpException(
+                'Collection modes are available for BrighterMonday and Fuzu.',
+            );
+        }
+        $definition = SourceCatalog::get($source['preset_key'], $mode);
+        if ($source['adapter'] !== $definition['adapter']) {
+            $repository->collectionMode($userId, $id, $definition);
+        }
+        if ($mode === 'email') {
+            $settings = new SettingsRepository();
+            $settings->save($userId, 'gmail', [
+                ...$settings->get($userId, 'gmail'),
+                'monitor_enabled' => true,
+            ]);
+            $this->refreshEmailHealth($userId);
+        }
+        (new ActivityRepository())->log(
+            $userId,
+            'source.mode',
+            'Changed ' . $source['name'] . ' collection to ' . $mode . '.',
+        );
     }
 
     public function refreshEmailHealth(int $userId): void

@@ -20,6 +20,9 @@ use App\Services\Discovery\LocationMatcher;
 use App\Services\Discovery\KeywordMatcher;
 use App\Services\Discovery\TechnologyRoles;
 use App\Services\Discovery\MyJobMagAdapter;
+use App\Services\Discovery\PublicContent;
+use App\Services\Discovery\PublicJobParser;
+use App\Services\Discovery\PublicJobsAdapter;
 use App\Services\Discovery\SourceCatalog;
 use App\Services\Discovery\SourceAdapter;
 use App\Services\Discovery\SourcePresetService;
@@ -61,6 +64,191 @@ function source_rejects(callable $operation): void
     }
     throw new RuntimeException('Expected rejection did not occur.');
 }
+
+$publicUrl = 'https://www.brightermonday.co.ke/listings/fixture-php-role';
+$publicGraph = [
+    '@context' => 'https://schema.org',
+    '@graph' => [
+        ['@type' => 'WebPage', 'url' => $publicUrl, 'mainEntity' => ['@id' => '#vacancy']],
+        [
+            '@type' => 'JobPosting',
+            '@id' => '#vacancy',
+            'title' => 'PHP Developer',
+            'hiringOrganization' => ['@id' => '#employer'],
+            'description' => '<p>Test-only PHP and MySQL duties.</p><script>malicious()</script>',
+            'jobLocation' => ['@id' => '#place'],
+            'employmentType' => ['FULL_TIME'],
+            'validThrough' => '2099-12-31T00:00:00Z',
+        ],
+        [
+            '@type' => 'Organization',
+            '@id' => '#employer',
+            'name' => 'Public collector test fixture',
+        ],
+        ['@type' => 'Place', '@id' => '#place', 'address' => ['@id' => '#address']],
+        [
+            '@type' => 'PostalAddress',
+            '@id' => '#address',
+            'addressLocality' => 'Nairobi',
+            'addressCountry' => 'KE',
+        ],
+    ],
+];
+$publicHtml = '<script type="application/ld+json">' . json_encode($publicGraph) . '</script>';
+source_check(
+    'public structured vacancies resolve graph references without AI or invented fields',
+    function () use ($publicHtml, $publicUrl): void {
+        $job = (new PublicJobParser())->job($publicHtml, $publicUrl);
+        source_same('PHP Developer', $job['title']);
+        source_same('Public collector test fixture', $job['employer']);
+        source_same('Nairobi, Kenya', $job['location']);
+        source_same('Test-only PHP and MySQL duties.', $job['description']);
+        source_same('2099-12-31', $job['deadline']);
+        source_same('full_time', $job['employment_type']);
+        source_same('external', $job['application_method']);
+        source_same(false, isset($job['salary_min']));
+    },
+);
+source_check(
+    'public links stay on the source host and exclude login, foreign and query endpoints',
+    function (): void {
+        $links = (new PublicJobParser())->links(
+            '<a href="/listings/fixture-php-role?utm_source=mail">One</a>' .
+                '<a href="https://www.brightermonday.co.ke/listings/fixture-php-role">Duplicate</a>' .
+                '<a href="https://www.brightermonday.co.ke.attacker.example/listings/unsafe">Unsafe</a>' .
+                '<a href="https://name:pass@www.brightermonday.co.ke/listings/unsafe">Credentials</a>' .
+                '<a href="https://www.brightermonday.co.ke:8443/listings/unsafe">Port</a>' .
+                '<a href="/api/jobs">API</a><a href="/account/login">Login</a>',
+            'brightermonday',
+        );
+        source_same(['https://www.brightermonday.co.ke/listings/fixture-php-role'], $links);
+        source_same(
+            ['https://www.fuzu.com/kenya/jobs/fixture-role'],
+            (new PublicJobParser())->links(
+                '<a href="/kenya/jobs/fixture-role">Job</a><a href="/uganda/jobs/other">Other country</a><a href="/kenya/job?filters[job_id]=123">Query</a>',
+                'fuzu',
+            ),
+        );
+    },
+);
+source_check(
+    'public parser rejects missing employer, invalid deadlines and ambiguous vacancies',
+    function () use ($publicGraph, $publicUrl): void {
+        $graph = $publicGraph;
+        unset($graph['@graph'][2]['name']);
+        source_rejects(
+            fn() => (new PublicJobParser())->job(
+                '<script type="application/ld+json">' . json_encode($graph) . '</script>',
+                $publicUrl,
+            ),
+        );
+        $graph = $publicGraph;
+        $graph['@graph'][1]['validThrough'] = '2099-02-31';
+        source_rejects(
+            fn() => (new PublicJobParser())->job(
+                '<script type="application/ld+json">' . json_encode($graph) . '</script>',
+                $publicUrl,
+            ),
+        );
+        $graph['@graph'][] = $graph['@graph'][1];
+        source_rejects(
+            fn() => (new PublicJobParser())->job(
+                '<script type="application/ld+json">' . json_encode($graph) . '</script>',
+                $publicUrl,
+            ),
+        );
+        source_rejects(
+            fn() => (new PublicJobParser())->job(
+                '<h1>Browser verification required</h1>',
+                $publicUrl,
+            ),
+        );
+    },
+);
+$publicHttp = new class ($publicHtml) extends HttpClient {
+    public array $requests = [];
+    public array $pages = [];
+    public int $pageStatus = 200;
+    public string $robots = 'User-agent: *';
+    public function __construct(public string $html) {}
+    public function request(
+        string $method,
+        string $url,
+        array $headers = [],
+        ?string $body = null,
+        int $timeout = 45,
+        int $maxBytes = 4194304,
+    ): array {
+        $this->requests[] = $url;
+        $robots = str_ends_with($url, '/robots.txt');
+        $category =
+            str_contains($url, '/jobs/software-data') ||
+            str_contains($url, '/job/computers-software-development');
+        $links = '';
+        for ($i = 0; $i < 30; $i++) {
+            $links .= '<a href="/listings/fixture-' . $i . '">Fixture</a>';
+        }
+        return [
+            'status' => $robots ? 200 : $this->pageStatus,
+            'headers' => [],
+            'body' => $robots
+                ? $this->robots
+                : ($category
+                    ? $links
+                    : $this->pages[$url] ?? $this->html),
+        ];
+    }
+};
+source_check(
+    'public collection caps vacancy requests and fetches robots once per run',
+    function () use ($publicHttp): void {
+        $source = SourceCatalog::get('brightermonday');
+        $items = (new PublicJobsAdapter(
+            'brightermonday',
+            new PublicContent($publicHttp),
+            0,
+        ))->collect($source, 200);
+        source_same(20, count($items));
+        source_same(22, count($publicHttp->requests));
+        source_same(
+            1,
+            count(
+                array_filter($publicHttp->requests, fn($url) => str_ends_with($url, '/robots.txt')),
+            ),
+        );
+    },
+);
+source_check(
+    'blocked public responses stop collection and report the actual HTTP status',
+    function () use ($publicHttp): void {
+        $publicHttp->pageStatus = 403;
+        $publicHttp->requests = [];
+        try {
+            (new PublicJobsAdapter('fuzu', new PublicContent($publicHttp), 0))->collect(
+                SourceCatalog::get('fuzu'),
+                20,
+            );
+            throw new RuntimeException('Expected a blocked source.');
+        } catch (HttpException $exception) {
+            source_same(true, str_contains($exception->getMessage(), 'HTTP 403'));
+        }
+        source_same(2, count($publicHttp->requests));
+        $publicHttp->pageStatus = 200;
+    },
+);
+source_check('robots query restrictions are enforced before requesting a page', function () use (
+    $publicHttp,
+): void {
+    $publicHttp->robots = "User-agent: *\nDisallow: /*q=*";
+    $publicHttp->requests = [];
+    source_rejects(
+        fn() => (new PublicContent($publicHttp))->fetch(
+            'https://www.brightermonday.co.ke/jobs?q=fixture',
+        ),
+    );
+    source_same(1, count($publicHttp->requests));
+    $publicHttp->robots = 'User-agent: *';
+});
 
 $xml = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -351,7 +539,7 @@ try {
         },
     );
     $service = new SourcePresetService();
-    $ids = $service->install($id, ['brightermonday', 'fuzu']);
+    $ids = $service->install($id, ['brightermonday', 'fuzu'], 'email');
     source_check('source presets are idempotent and stay inactive without Gmail', function () use (
         $id,
         $service,
@@ -647,6 +835,80 @@ try {
                     'status'
                 ],
             );
+        },
+    );
+    $publicUserId = $users->create(
+        'Public Collector Fixture',
+        'public-' . bin2hex(random_bytes(8)) . '@example.test',
+        'fixture-password-12345',
+    );
+    $userIds[] = $publicUserId;
+    $publicIds = $service->install($publicUserId, ['brightermonday', 'fuzu']);
+    source_check(
+        'public presets default to no Gmail and preserve modes and disabled state on reinstall',
+        function () use ($service, $publicUserId, $publicIds): void {
+            $repository = new SourceRepository();
+            source_same(
+                'brightermonday_public',
+                $repository->get($publicUserId, $publicIds['brightermonday'])['adapter'],
+            );
+            source_same('untested', $repository->get($publicUserId, $publicIds['fuzu'])['health']);
+            source_same(
+                false,
+                (new SettingsRepository())->get($publicUserId, 'gmail')['monitor_enabled'],
+            );
+            $service->selectMode($publicUserId, $publicIds['fuzu'], 'email');
+            source_same(
+                'needs_connection',
+                $repository->get($publicUserId, $publicIds['fuzu'])['health'],
+            );
+            $service->selectMode($publicUserId, $publicIds['fuzu'], 'public');
+            $service->refreshEmailHealth($publicUserId);
+            source_same('untested', $repository->get($publicUserId, $publicIds['fuzu'])['health']);
+            $service->install($publicUserId, ['fuzu']);
+            source_same(0, (int) $repository->get($publicUserId, $publicIds['fuzu'])['enabled']);
+            source_rejects(fn() => $service->selectMode(2147483647, $publicIds['fuzu'], 'public'));
+        },
+    );
+    source_check(
+        'public discovery imports, filters and deduplicates vacancies without Gmail or AI',
+        function () use ($publicHttp, $publicUserId, $publicIds): void {
+            $repository = new SourceRepository();
+            $repository->health($publicUserId, $publicIds['brightermonday'], true);
+            $settings = new SettingsRepository();
+            $settings->save($publicUserId, 'discovery', [
+                ...$settings->get($publicUserId, 'discovery'),
+                'role_focus' => 'technology',
+            ]);
+            $adapter = new PublicJobsAdapter('brightermonday', new PublicContent($publicHttp), 0);
+            $service = new DiscoveryService(['brightermonday_public' => $adapter]);
+            $reset = fn() => Database::connection()
+                ->prepare(
+                    'UPDATE job_sources SET last_checked_at = NULL WHERE id = ? AND user_id = ?',
+                )
+                ->execute([$publicIds['brightermonday'], $publicUserId]);
+            $reset();
+            source_same(1, $service->run($publicUserId));
+            $reset();
+            source_same(0, $service->run($publicUserId));
+            source_same(1, count((new JobRepository())->list($publicUserId)));
+            $settings->save($publicUserId, 'discovery', [
+                ...$settings->get($publicUserId, 'discovery'),
+                'jobs_per_run' => 1,
+            ]);
+            $publicHttp->pages['https://www.brightermonday.co.ke/listings/fixture-1'] = str_replace(
+                'PHP Developer',
+                'Frontend Developer',
+                $publicHttp->html,
+            );
+            $reset();
+            source_same(1, $service->run($publicUserId));
+            source_same(2, count((new JobRepository())->list($publicUserId)));
+            $publicHttp->pages = [];
+            $publicHttp->html = str_replace('PHP Developer', 'Accountant', $publicHttp->html);
+            $reset();
+            source_same(0, $service->run($publicUserId));
+            source_same(2, count((new JobRepository())->list($publicUserId)));
         },
     );
 } catch (Throwable $exception) {

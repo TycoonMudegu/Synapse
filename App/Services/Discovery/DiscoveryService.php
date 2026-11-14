@@ -26,6 +26,8 @@ final class DiscoveryService
         return match ($type) {
             'rss' => new FeedAdapter(),
             'myjobmag' => new MyJobMagAdapter(),
+            'brightermonday_public' => new PublicJobsAdapter('brightermonday'),
+            'fuzu_public' => new PublicJobsAdapter('fuzu'),
             'email_alert' => new EmailAlertAdapter(),
             'json' => new JsonFeedAdapter(),
             default => throw new HttpException('This source has no supported adapter.'),
@@ -56,7 +58,7 @@ final class DiscoveryService
         $enabled = $sources->enabled($userId, (int) $settings['sources_per_run']);
         if ($enabled === []) {
             throw new HttpException(
-                'Test a permitted feed or connect Gmail for the requested email-alert sources in Settings → Job discovery.',
+                'Check and enable a public job source in Settings → Job discovery, or connect Gmail for optional email alerts.',
             );
         }
         $queue = new QueueRepository();
@@ -83,7 +85,11 @@ final class DiscoveryService
                 // Plain-text sources still respect the AI extraction limit and budget.
                 $items = $this->adapter($source['adapter'])->collect(
                     $source,
-                    $source['adapter'] === 'myjobmag' ? 200 : $limit - $processed,
+                    match ($source['adapter']) {
+                        'myjobmag' => 200,
+                        'brightermonday_public', 'fuzu_public' => 20,
+                        default => $limit - $processed,
+                    },
                 );
                 $sources->health($userId, (int) $source['id'], true);
             } catch (\Throwable $exception) {
@@ -99,11 +105,21 @@ final class DiscoveryService
                 if ($processed >= $limit) {
                     break;
                 }
-                if (isset($item['structured']) && !$this->matches($item['structured'], $settings)) {
-                    continue;
-                }
-                $processed++;
                 try {
+                    if (isset($item['structured'])) {
+                        if (!$this->matches($item['structured'], $settings)) {
+                            continue;
+                        }
+                        if (
+                            (new JobRepository())->duplicateId(
+                                $userId,
+                                (new JobService())->normalise($item['structured']),
+                            ) !== null
+                        ) {
+                            continue;
+                        }
+                    }
+                    $processed++;
                     $spent =
                         array_sum(array_column($settingsRepo->usage($userId), 'estimated_cost')) -
                         $budgetStart;

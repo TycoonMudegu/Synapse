@@ -10,7 +10,7 @@ foreach ($sources as $installedSource) {
     <div class="page-heading mb-4">
         <div>
             <h2>Your Kenyan job sources</h2>
-            <p>Official feeds and the alerts you choose to receive. New jobs appear in Discover and Activity.</p>
+            <p>Collect jobs from public pages and feeds. Email alerts are optional. New jobs appear in Discover and Activity.</p>
         </div>
         <?php if (count($installedSources) < count($sourceCatalog)): ?>
             <button class="btn btn-soft" data-action="<?= e(app_url('/api/sources/presets')); ?>" data-loading="Adding and checking sources…">
@@ -22,7 +22,8 @@ foreach ($sources as $installedSource) {
         <?php foreach ($sourceCatalog as $sourceKey => $definition): ?>
             <?php
             $installedSource = $installedSources[$sourceKey] ?? null;
-            $emailSource = $definition['adapter'] === 'email_alert';
+            $emailSource = ($installedSource['adapter'] ?? $definition['adapter']) === 'email_alert';
+            $publicPages = in_array($sourceKey, ['brightermonday', 'fuzu'], true) && !$emailSource;
             $sourceState = $installedSource ? label($installedSource['health']) : 'Not added';
             if ($installedSource && !$installedSource['enabled'] && $installedSource['health'] === 'connected') {
                 $sourceState = 'Disabled';
@@ -34,7 +35,8 @@ foreach ($sources as $installedSource) {
                     <h3><?= e($definition['name']); ?></h3>
                     <span class="badge <?= $installedSource && $installedSource['enabled'] && $installedSource['health'] === 'connected' ? 'badge-green' : 'badge-warm'; ?>"><?= e($sourceState); ?></span>
                 </div>
-                <p><?= e($definition['description']); ?></p>
+                <p><?= e($emailSource ? \App\Services\Discovery\SourceCatalog::get($sourceKey, 'email')['description'] : $definition['description']); ?></p>
+                <p><strong><?= $emailSource ? 'Email alerts' : ($publicPages ? 'Public pages' : 'Official RSS'); ?></strong></p>
                 <?php if ($installedSource): ?>
                     <?php if ($installedSource['last_error']): ?>
                         <p class="text-earth"><?= e($installedSource['last_error']); ?></p>
@@ -55,18 +57,23 @@ foreach ($sources as $installedSource) {
                         <?php if ($emailSource && !$gmailConnected): ?>
                             <a class="btn btn-primary btn-sm" href="<?= e(app_url('/settings?tab=gmail')); ?>">Connect Gmail</a>
                         <?php else: ?>
-                            <button class="btn btn-soft btn-sm" data-action="<?= e(app_url('/api/sources/' . $installedSource['id'])); ?>" data-payload='{"action":"test"}' data-loading="Checking connection…"><?= $emailSource ? 'Check alerts' : 'Check feed'; ?></button>
+                            <button class="btn btn-soft btn-sm" data-action="<?= e(app_url('/api/sources/' . $installedSource['id'])); ?>" data-payload='{"action":"test"}' data-loading="Checking connection…"><?= $emailSource ? 'Check alerts' : ($publicPages ? 'Check public pages' : 'Check feed'); ?></button>
                         <?php endif; ?>
                         <button class="btn btn-sm" data-action="<?= e(app_url('/api/sources/' . $installedSource['id'])); ?>" data-payload='{"action":"toggle"}'><?= $installedSource['enabled'] ? 'Disable' : 'Enable'; ?></button>
                         <button class="icon-button" aria-label="Remove <?= e($definition['name']); ?> from JobFlow" data-action="<?= e(app_url('/api/sources/' . $installedSource['id'])); ?>" data-payload='{"action":"delete"}' data-confirm="Remove this source from JobFlow? Saved jobs stay. Manage any email subscription on the original website."><?= icon('trash-2'); ?></button>
                         <?php if ($emailSource): ?>
                             <button class="btn btn-sm" data-action="<?= e(app_url('/api/sources/' . $installedSource['id'])); ?>" data-payload='{"action":"retry_alerts"}'>Retry failed imports</button>
                         <?php endif; ?>
+                        <?php if (in_array($sourceKey, ['brightermonday', 'fuzu'], true)): ?>
+                            <button class="btn btn-sm" data-action="<?= e(app_url('/api/sources/' . $installedSource['id'])); ?>" data-payload="<?= e(json_encode(['action' => $emailSource ? 'public_pages' : 'email_alerts'], JSON_THROW_ON_ERROR)); ?>"><?= $emailSource ? 'Use public pages' : 'Use email alerts'; ?></button>
+                        <?php endif; ?>
                     <?php endif; ?>
-                    <a class="text-link" href="<?= e($definition['setup_url']); ?>" target="_blank" rel="noopener noreferrer"><?= $emailSource ? 'Set up official alerts' : 'Official RSS information'; ?><?= icon('external-link'); ?></a>
+                    <a class="text-link" href="<?= e($publicPages ? $definition['url'] : $definition['setup_url']); ?>" target="_blank" rel="noopener noreferrer"><?= $emailSource ? 'Set up official alerts' : ($publicPages ? 'Browse jobs' : 'Official RSS information'); ?><?= icon('external-link'); ?></a>
                 </div>
                 <?php if ($emailSource): ?>
                     <p>Connect Gmail with monitoring enabled, then complete the site's subscription and email verification yourself. Direct job links are imported; unsupported tracking links remain in the inbox for review.</p>
+                <?php elseif ($publicPages): ?>
+                    <p>Reads public technical job pages with a request cap and delay. A blocked request or incomplete vacancy is reported instead of creating a job.</p>
                 <?php endif; ?>
             </article>
         <?php endforeach; ?>

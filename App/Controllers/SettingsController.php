@@ -105,7 +105,7 @@ final class SettingsController
         $keys = $key === '' ? [] : [$key];
         $ids = (new \App\Services\Discovery\SourcePresetService())->install(Auth::id(), $keys);
         $message =
-            'Requested sources added. Connect Gmail and enable the official email alerts for BrighterMonday and Fuzu.';
+            'Sources added. Check public pages to enable BrighterMonday or Fuzu. Gmail is optional for email collection.';
         if (isset($ids['myjobmag'])) {
             $repository = new SourceRepository();
             $source = $repository->get(Auth::id(), $ids['myjobmag']);
@@ -113,7 +113,7 @@ final class SettingsController
                 (new DiscoveryService())->adapter('myjobmag')->validate($source);
                 $repository->health(Auth::id(), $source['id'], true);
                 $message =
-                    'MyJobMag connected and its first collection is queued. BrighterMonday and Fuzu need Gmail and official email alerts.';
+                    'MyJobMag connected and collection is queued. Check the BrighterMonday and Fuzu public sources to enable them.';
                 (new QueueRepository())->enqueue(Auth::id(), 'discovery');
             } catch (\Throwable $exception) {
                 $error =
@@ -162,6 +162,21 @@ final class SettingsController
         $repository = new SourceRepository();
         $source = $repository->get(Auth::id(), $id);
         $action = $request->string('action');
+        if ($action === 'public_pages' || $action === 'email_alerts') {
+            (new \App\Services\Discovery\SourcePresetService())->selectMode(
+                Auth::id(),
+                $id,
+                $action === 'public_pages' ? 'public' : 'email',
+            );
+            Response::json([
+                'ok' => true,
+                'message' =>
+                    $action === 'public_pages'
+                        ? 'Public collection selected. Check public pages to enable this source.'
+                        : 'Email collection selected. Connect Gmail and enable the site’s alerts.',
+                'reload' => true,
+            ]);
+        }
         if ($action === 'test') {
             if (!$source['permission_confirmed']) {
                 throw new HttpException(
@@ -174,6 +189,7 @@ final class SettingsController
                 }
                 (new DiscoveryService())->adapter($source['adapter'])->validate($source);
                 $repository->health(Auth::id(), $id, true);
+                (new QueueRepository())->enqueue(Auth::id(), 'discovery');
             } catch (\Throwable $exception) {
                 $error =
                     $exception instanceof HttpException
