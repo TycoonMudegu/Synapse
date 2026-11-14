@@ -94,6 +94,7 @@
                     <h3><?= e($job['title']); ?></h3>
                     <p><?= e($job['employer']); ?> · <?= e($job['location'] ?: 'Location not supplied'); ?> · <?= e(label($job['employment_type'])); ?></p>
                     <p><?= $job['salary_min'] !== null ? e($job['currency'] . ' ' . number_format((float) $job['salary_min'])) : 'Salary not supplied'; ?> · Closes <?= e(short_date($job['deadline'])); ?></p>
+                    <p>Source: <?= e($job['source_name'] ?: 'Manually added'); ?></p>
                 </div>
                 <span class="badge <?= $job['score'] !== null ? 'badge-blue' : ''; ?>"><?= $job[ 'score' ] !== null ? e($job['score']) . '% match' : 'Not analysed'; ?></span>
             </a>

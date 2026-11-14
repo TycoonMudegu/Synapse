@@ -90,6 +90,9 @@
                                 <strong><?= e($job['title']); ?></strong>
                                 <div class="muted text-[11px]"><?= e($job['employer']); ?></div>
                             </a>
+                            <div class="mt-2">
+                                <span class="badge badge-blue">Source: <?= e($job['source_name'] ?: 'Manually added'); ?></span>
+                            </div>
                         </td>
                         <td>
                             <?= e($job['location'] ?: 'Not supplied'); ?>
