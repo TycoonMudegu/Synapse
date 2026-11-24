@@ -19,3 +19,10 @@ putenv('DOCUMENT_RENDERER_TOKEN=');
 // Never let ordinary fixtures upload documents to the owner's real bucket.
 putenv('DOCUMENT_STORAGE=' . (getenv('JOBFLOW_TEST_STORAGE') ?: 'local'));
 require BASE_PATH . '/Bootstrap/App.php';
+// Application bootstrap hides PHP errors; surface uncaught CLI test failures in CI.
+if (PHP_SAPI === 'cli') {
+    set_exception_handler(static function (Throwable $error): void {
+        fwrite(STDERR, (string) $error . PHP_EOL);
+        exit(1);
+    });
+}

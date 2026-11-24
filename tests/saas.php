@@ -37,6 +37,21 @@ function eq(mixed $expected, mixed $actual): void
         );
     }
 }
+function json_eq(array $expected, array $actual): void
+{
+    // JSON objects are unordered; retain strict scalar types and JSON array order.
+    $normalize = static function (mixed $value) use (&$normalize): mixed {
+        if (!is_array($value)) {
+            return $value;
+        }
+        $value = array_map($normalize, $value);
+        if (!array_is_list($value)) {
+            ksort($value);
+        }
+        return $value;
+    };
+    eq($normalize($expected), $normalize($actual));
+}
 function denied(callable $operation, int $status = 422): void
 {
     try {
@@ -134,6 +149,23 @@ try {
             eq(['myjobmag'], array_keys((new OnboardingService())->sources('finance')));
         },
     );
+    saas_check('catalogue order survives reordered JSON object keys', function () use (
+        $accounts,
+    ): void {
+        $original = $accounts->site('job_sources');
+        try {
+            foreach ([$original, array_reverse($original, true)] as $configuration) {
+                $accounts->saveSite('job_sources', $configuration);
+                eq(
+                    ['myjobmag', 'talent'],
+                    array_keys((new OnboardingService())->sources('technology')),
+                );
+                eq(['myjobmag'], array_keys((new OnboardingService())->sources('finance')));
+            }
+        } finally {
+            $accounts->saveSite('job_sources', $original);
+        }
+    });
     saas_check('preferences reject unavailable and wrong-field sources', function () use (
         $user,
     ): void {
@@ -252,7 +284,7 @@ try {
         function () use ($user, $cv, $accounts): void {
             $first = (new CvReviewService())->grade($user, $cv);
             eq(100, $first['score']);
-            eq($first, (new CvReviewService())->grade($user, $cv));
+            json_eq($first, (new CvReviewService())->grade($user, $cv));
             eq(1, (int) $accounts->preferences($user)['initial_grade_used']);
         },
     );

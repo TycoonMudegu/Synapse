@@ -71,19 +71,17 @@ final class OnboardingService
     {
         $configured = (new AccountRepository())->site('job_sources');
         $available = [];
-        foreach ($configured as $key => $source) {
-            if (
-                !isset(SourceCatalog::SOURCES[$key]) ||
-                empty($source['enabled']) ||
-                ($source['health'] ?? '') !== 'connected'
-            ) {
+        // JSON object key order can change in storage; use the catalogue's display order.
+        foreach (SourceCatalog::SOURCES as $key => $definition) {
+            $source = $configured[$key] ?? [];
+            if (empty($source['enabled']) || ($source['health'] ?? '') !== 'connected') {
                 continue;
             }
             // Existing category collectors currently cover technology vacancies only.
             if ($field !== 'technology' && $key !== 'myjobmag') {
                 continue;
             }
-            $available[$key] = SourceCatalog::SOURCES[$key];
+            $available[$key] = $definition;
         }
         return $available;
     }
