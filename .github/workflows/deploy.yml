@@ -37,8 +37,8 @@ jobs:
             DB_DEPLOY_RELEASE: ${{ github.sha }}
             DB_DEPLOY_BASE_URL: ${{ vars.DB_DEPLOY_BASE_URL || secrets.DB_DEPLOY_BASE_URL || 'https://jobflow.mystuffs.co.ke' }}
             DB_DEPLOY_SECRET: ${{ secrets.DB_DEPLOY_SECRET }}
-            FTP_SERVER_DIR: ${{ vars.FTP_SERVER_DIR }}
-            FTP_PROTOCOL: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+            FTP_SERVER_DIR: ${{ vars.FTP_SERVER_DIR || secrets.FTP_SERVER_DIR }}
+            FTP_PROTOCOL: ${{ vars.FTP_PROTOCOL || secrets.FTP_PROTOCOL || 'ftps' }}
         steps:
             - uses: actions/checkout@v6
             - name: Validate the explicit Synapse destination
@@ -71,7 +71,7 @@ jobs:
                   server: ${{ secrets.FTP_SERVER }}
                   username: ${{ secrets.FTP_USERNAME }}
                   password: ${{ secrets.FTP_PASSWORD }}
-                  port: ${{ vars.FTP_PORT || '21' }}
+                  port: ${{ vars.FTP_PORT || secrets.FTP_PORT || '21' }}
                   protocol: ${{ env.FTP_PROTOCOL }}
                   security: strict
                   local-dir: ./.release/bootstrap/
@@ -90,7 +90,7 @@ jobs:
                   server: ${{ secrets.FTP_SERVER }}
                   username: ${{ secrets.FTP_USERNAME }}
                   password: ${{ secrets.FTP_PASSWORD }}
-                  port: ${{ vars.FTP_PORT || '21' }}
+                  port: ${{ vars.FTP_PORT || secrets.FTP_PORT || '21' }}
                   protocol: ${{ env.FTP_PROTOCOL }}
                   security: strict
                   local-dir: ./.migration-upload/_db-deploy/
@@ -112,7 +112,7 @@ jobs:
                   server: ${{ secrets.FTP_SERVER }}
                   username: ${{ secrets.FTP_USERNAME }}
                   password: ${{ secrets.FTP_PASSWORD }}
-                  port: ${{ vars.FTP_PORT || '21' }}
+                  port: ${{ vars.FTP_PORT || secrets.FTP_PORT || '21' }}
                   protocol: ${{ env.FTP_PROTOCOL }}
                   security: strict
                   local-dir: ./.release/application/

@@ -19,6 +19,8 @@ Create the `production` GitHub environment and configure these settings there (r
 | Secret | `FTP_PASSWORD` | FTP password |
 | Secret | `DB_DEPLOY_SECRET` | 64 lowercase hex characters, matching the private hosting `.env` |
 
+The workflow also accepts `FTP_SERVER_DIR`, `FTP_PROTOCOL` and `FTP_PORT` from Secrets when no matching Variable is set.
+
 The deployment keys are also listed in `.env.example` and the private local `.env` for setup. The example keeps credential values empty. Actions reads its own configured secrets and variables, so editing a local env file does not update GitHub or hosting. If `DB_DEPLOY_SECRET` already exists in GitHub, reuse that exact value in private `.env` and the hosting `.env`; do not generate a different value for either file. GitHub cannot return the saved secret value. If it is no longer available, generate a replacement privately and update all three locations together.
 
 The workflow installs locked Composer dependencies, prepares PDF.js and Tailwind assets, and builds two upload packages. The application package uses an explicit list of runtime paths; it excludes local `.env`, Google credential JSON files, private storage, email receipts, tests, Node modules and Git metadata. The migration package contains only the SQL migration files and its small authenticated PHP runtime. Both packages are assembled locally under ignored directories, `.release/` and `.migration-upload/`.
