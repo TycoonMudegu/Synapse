@@ -1,6 +1,6 @@
 # Production deployment
 
-Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic page confirmed its filesystem document root as `/home/themude3/domains/jobflow.mystuffs.co.ke/public_html/`. The FTP path must still be verified from the FTP account: an account confined to this folder may see `/`, while an account rooted at the home directory may see `/domains/jobflow.mystuffs.co.ke/public_html/`. Never copy Hummingbird's FTP destination or database credentials.
+Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic page confirmed its filesystem document root as `/home/themude3/domains/jobflow.mystuffs.co.ke/public_html/`. The owner confirmed that the FTP account opens directly in this folder, so `FTP_SERVER_DIR=/`. Never copy Hummingbird's FTP destination or database credentials.
 
 ## GitHub Actions
 
@@ -11,7 +11,7 @@ Create the `production` GitHub environment and configure these settings there (r
 | Kind | Name | Value |
 | --- | --- | --- |
 | Variable | `DB_DEPLOY_BASE_URL` | `https://jobflow.mystuffs.co.ke` (the workflow default) |
-| Variable | `FTP_SERVER_DIR` | Exact FTP-visible web-root folder, beginning and ending with `/` |
+| Variable | `FTP_SERVER_DIR` | `/` for the confirmed account confined to this site's web root |
 | Variable | `FTP_PROTOCOL` | `ftps` by default; use the protocol supported by the hosting account |
 | Variable | `FTP_PORT` | `21` by default |
 | Secret | `FTP_SERVER` | Synapse hosting FTP hostname |
