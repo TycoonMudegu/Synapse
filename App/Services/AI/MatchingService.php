@@ -14,6 +14,7 @@ final class MatchingService
 {
     public function analyse(int $userId, int $jobId): array
     {
+        (new \App\Services\Entitlements())->requirePaid($userId);
         $profile = (new ProfileRepository())->get($userId);
         if (empty($profile['verified_at'])) {
             throw new HttpException(
@@ -22,6 +23,14 @@ final class MatchingService
         }
         $jobs = new JobRepository();
         $job = $jobs->get($userId, $jobId);
+        if (
+            $job['status'] === 'expired' ||
+            ($job['deadline'] && $job['deadline'] < date('Y-m-d'))
+        ) {
+            throw new HttpException(
+                'This vacancy has closed. It will not be matched or prepared for automatic submission.',
+            );
+        }
         $result = (new AiService())->run($userId, 'screening', [
             'profile' => $profile,
             'job' => $job,

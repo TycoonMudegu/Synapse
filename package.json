@@ -3,21 +3,21 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "npm run build:css && npm run build:js && node scripts/assets.mjs",
+        "build:pdf": "node scripts/build-pdf-reader.mjs",
         "build:css": "tailwindcss -i Resources/css/app.css -o Public/Assets/app.css --minify",
-        "build:js": "esbuild Resources/js/app.js --bundle --format=esm --target=es2022 --outfile=Public/Assets/app.js",
-        "dev": "php -S 127.0.0.1:8080 -t Public Public/router.php",
-        "watch": "tailwindcss -i Resources/css/app.css -o Public/Assets/app.css --watch",
-        "test:browser": "node tests/browser.mjs",
-        "format": "prettier --write \"App/**/*.php\" \"Bootstrap/*.php\" \"Routes/*.php\" \"Public/*.php\" \"Resources/css/*.css\" \"Resources/js/*.js\" \"scripts/*.{php,mjs}\" \"tests/*.{php,mjs}\""
+        "watch:css": "tailwindcss -i Resources/css/app.css -o Public/Assets/app.css --minify --watch"
+    },
+    "dependencies": {
+        "playwright": "^1.65.0"
     },
     "devDependencies": {
+        "@alpinejs/csp": "3.17.5",
         "@fontsource/nunito": "^5.2.0",
         "@playwright/test": "^1.65.0",
         "@prettier/plugin-php": "^0.26.0",
         "@tailwindcss/cli": "^4.1.0",
-        "esbuild": "^0.25.0",
         "lucide": "^0.468.0",
+        "pdfjs-dist": "6.5.438",
         "prettier": "^3.10.1",
         "tailwindcss": "^4.1.0"
     }

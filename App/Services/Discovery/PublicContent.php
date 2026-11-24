@@ -82,7 +82,7 @@ final class PublicContent
             }
             $inRules = true;
             if (
-                !array_intersect($agents, ['*', 'jobflow']) ||
+                !array_intersect($agents, ['*', 'synapse', 'jobflow']) ||
                 !in_array($directive, ['allow', 'disallow'], true) ||
                 $value === ''
             ) {

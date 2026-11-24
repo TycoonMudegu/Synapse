@@ -6,6 +6,24 @@ namespace App\Core;
 
 final class Env
 {
+    /** Read one selected file without changing or inheriting process variables. */
+    public static function parse(string $contents): array
+    {
+        $values = [];
+        foreach (preg_split('/\R/', $contents) as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+                continue;
+            }
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            if (!array_key_exists($key, $values)) {
+                $values[$key] = trim(trim($value), "\"'");
+            }
+        }
+        return $values;
+    }
+
     public static function load(string $path): void
     {
         if (!is_file($path)) {

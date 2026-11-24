@@ -9,6 +9,9 @@ if (!defined('BASE_PATH')) {
 }
 require BASE_PATH . '/vendor/autoload.php';
 Env::load(BASE_PATH . '/.env');
+if (!defined('CSP_NONCE')) {
+    define('CSP_NONCE', base64_encode(random_bytes(24)));
+}
 umask(0077);
 date_default_timezone_set(Env::get('APP_TIMEZONE', 'Africa/Nairobi'));
 ini_set('display_errors', '0');
@@ -34,7 +37,9 @@ if (PHP_SAPI !== 'cli') {
     header('Referrer-Policy: same-origin');
     header('Cache-Control: no-store');
     header(
-        "Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-" .
+            CSP_NONCE .
+            "'; script-src-attr 'none'; worker-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: https://storage.googleapis.com; connect-src 'self' https://storage.googleapis.com; frame-src 'self' https://storage.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com",
     );
     if (Env::bool('SESSION_SECURE', true)) {
         header('Strict-Transport-Security: max-age=31536000');

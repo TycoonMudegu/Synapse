@@ -8,7 +8,7 @@
         <?php if (
     $active === 'discover'
 ): ?>
-        <button class="btn" data-action="<?= e(app_base_path()); ?>/api/automation/search" data-loading="Queuing discovery…">
+        <button class="btn" x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/automation/search" data-loading="Queuing discovery…">
             <?= icon('refresh-cw'); ?>Search now
         </button>
         <?php endif; ?>
@@ -25,11 +25,11 @@
             </div>
         </div>
     <?php endif; ?>
-    <?php require BASE_PATH . '/Resources/Views/components/source-catalog.php'; ?>
+    <div class="notice"><div><strong>Your job sites</strong><p><?= e(implode(', ', array_column(array_filter($sources, fn($source) => $source['enabled']), 'name')) ?: 'Choose a job site to start discovering opportunities.'); ?></p><a class="text-link" href="<?= e(app_url('/settings?tab=discovery')); ?>">Edit my search</a></div></div>
 <?php endif; ?>
 <section class="panel">
     <div class="toolbar">
-        <form class="filter-form" method="get" data-filter-form>
+        <form class="filter-form" method="get" x-data="filterForm" x-on:submit.prevent="submit($event)">
             <input
                 type="search"
                 name="q"

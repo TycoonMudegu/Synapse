@@ -14,6 +14,7 @@ use App\Services\AI\MatchingService;
 use App\Services\Discovery\DiscoveryService;
 use App\Services\Documents\PreparationService;
 use App\Services\Mail\GmailService;
+use App\Services\Mail\ManualJobAlertService;
 
 final class Worker
 {
@@ -24,6 +25,13 @@ final class Worker
         $queue = new QueueRepository();
         $task = $queue->claim($this->taskTypes);
         file_put_contents(BASE_PATH . '/storage/worker-heartbeat', (string) time(), LOCK_EX);
+        if ($this->taskTypes === []) {
+            file_put_contents(
+                BASE_PATH . '/storage/application-worker-heartbeat',
+                (string) time(),
+                LOCK_EX,
+            );
+        }
         if (!$task) {
             return false;
         }
@@ -35,13 +43,39 @@ final class Worker
         }
         try {
             $settings = (new SettingsRepository())->get($userId, 'automation');
-            if ($settings['paused']) {
+            if (
+                $settings['paused'] &&
+                !in_array($task['type'], ['process_document', 'archive_document'], true)
+            ) {
                 $queue->defer($task);
                 return true;
             }
             $payload = json_decode($task['payload_json'], true, 64, JSON_THROW_ON_ERROR);
+            if (
+                in_array(
+                    $task['type'],
+                    [
+                        'analyse_job',
+                        'prepare_application',
+                        'submit_application',
+                        'manual_job_alert',
+                    ],
+                    true,
+                )
+            ) {
+                (new Entitlements())->requirePaid($userId);
+            }
             match ($task['type']) {
                 'discovery' => (new DiscoveryService())->run($userId),
+                'process_document' => (new \App\Services\Documents\DocumentService())->process(
+                    $userId,
+                    (int) $payload['document_id'],
+                ),
+                'archive_document'
+                    => (new \App\Services\Documents\DocumentRetentionService())->archive(
+                    $userId,
+                    (int) $payload['document_id'],
+                ),
                 'analyse_job' => $this->analyse($userId, (int) $payload['job_id']),
                 'prepare_application' => (new PreparationService())->prepare(
                     $userId,
@@ -52,6 +86,10 @@ final class Worker
                     (int) $payload['application_id'],
                 ),
                 'gmail_sync' => $this->sync($userId),
+                'manual_job_alert' => (new ManualJobAlertService())->deliver(
+                    $userId,
+                    (int) $payload['alert_id'],
+                ),
                 'verify_deadlines' => $this->deadlines($userId),
                 default => throw new HttpException('Unknown background task type.'),
             };

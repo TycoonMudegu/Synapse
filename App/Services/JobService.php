@@ -125,7 +125,11 @@ final class JobService
                 'Saved an opportunity: ' . $data['title'],
             );
             $settings = (new SettingsRepository())->get($userId, 'automation');
-            if ($settings['analysis_enabled'] && !$settings['paused']) {
+            if (
+                $settings['analysis_enabled'] &&
+                !$settings['paused'] &&
+                (new AutomationService())->status($userId)['can_analyse']
+            ) {
                 (new QueueRepository())->enqueue($userId, 'analyse_job', [
                     'job_id' => $result['id'],
                 ]);

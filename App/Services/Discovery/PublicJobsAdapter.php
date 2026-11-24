@@ -13,7 +13,9 @@ final class PublicJobsAdapter implements SourceAdapter
         private readonly PublicContent $content = new PublicContent(),
         private readonly int $delayMilliseconds = 1000,
     ) {
-        if (!in_array($sourceKey, ['brightermonday', 'fuzu'], true)) {
+        if (
+            !in_array($sourceKey, ['brightermonday', 'fuzu', 'corporatestaffing', 'talent'], true)
+        ) {
             throw new HttpException('Unsupported public job source.');
         }
     }
@@ -34,7 +36,14 @@ final class PublicJobsAdapter implements SourceAdapter
         if ($source['url'] !== $definition['url']) {
             throw new HttpException('Use the built-in public category URL for this source.');
         }
-        $parser = new PublicJobParser();
+        $parser = $this->sourceKey === 'talent' ? new TalentJobParser() : new PublicJobParser();
+        if ($this->sourceKey === 'fuzu') {
+            // Start at the ordinary job search before opening its technical category.
+            $this->fetch($definition['setup_url']);
+            if ($this->delayMilliseconds > 0) {
+                usleep(min(5000, $this->delayMilliseconds) * 1000);
+            }
+        }
         $links = $parser->links($this->fetch($source['url']), $this->sourceKey);
         if ($links === []) {
             throw new HttpException(
@@ -43,7 +52,8 @@ final class PublicJobsAdapter implements SourceAdapter
         }
         $jobs = [];
         $skipped = 0;
-        // One category page and at most 20 vacancy pages per run, fetched sequentially.
+        $consecutiveServerErrors = 0;
+        // One category page (plus Fuzu's entry page) and at most 20 sequential vacancy pages.
         foreach (array_slice($links, 0, 20) as $url) {
             if ($this->delayMilliseconds > 0) {
                 usleep(min(5000, $this->delayMilliseconds) * 1000);
@@ -51,12 +61,23 @@ final class PublicJobsAdapter implements SourceAdapter
             try {
                 $html = $this->fetch($url);
             } catch (HttpException $exception) {
-                if (!preg_match('/HTTP (404|410)\b/', $exception->getMessage())) {
-                    throw $exception;
+                if (preg_match('/HTTP (404|410)\b/', $exception->getMessage())) {
+                    $consecutiveServerErrors = 0;
+                    $skipped++;
+                    continue;
                 }
-                $skipped++;
-                continue;
+                if (preg_match('/HTTP (500|502|503|504)\b/', $exception->getMessage())) {
+                    $skipped++;
+                    if (++$consecutiveServerErrors < 3) {
+                        continue;
+                    }
+                    if ($jobs !== []) {
+                        break;
+                    }
+                }
+                throw $exception;
             }
+            $consecutiveServerErrors = 0;
             try {
                 $jobs[] = ['structured' => $parser->job($html, $url)];
             } catch (HttpException) {
@@ -77,7 +98,7 @@ final class PublicJobsAdapter implements SourceAdapter
                 $definition['name'] .
                     ': skipped ' .
                     $skipped .
-                    ' removed or incomplete public vacancies.',
+                    ' unavailable or incomplete public vacancies.',
             );
         }
         return $jobs;
@@ -93,7 +114,10 @@ final class PublicJobsAdapter implements SourceAdapter
                     SourceCatalog::get($this->sourceKey)['name'] .
                         ' blocked public collection from this server (HTTP ' .
                         $match[1] .
-                        '). No jobs were collected. Open the site to browse, or use optional email alerts.',
+                        '). No jobs were collected. Open the site to browse.' .
+                        (isset(SourceCatalog::get($this->sourceKey)['sender_domain'])
+                            ? ' You can also use optional email alerts.'
+                            : ''),
                 );
             }
             throw $exception;

@@ -9,7 +9,7 @@
     $connection
 ): ?>
         <span class="text-xs muted">Last sync: <?= $connection['last_sync_at'] ? e(date('d M, H:i', strtotime($connection['last_sync_at']))) . ' EAT' : 'Never'; ?></span>
-        <button class="btn" data-action="<?= e(app_base_path()); ?>/api/gmail/sync" data-loading="Queuing synchronisation…">
+        <button class="btn" x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/gmail/sync" data-loading="Queuing synchronisation…">
             <?= icon('refresh-cw'); ?>Synchronise
         </button>
         <?php else: ?>
@@ -21,7 +21,7 @@
 <section class="panel"><?php empty_state(
     'mail-open',
     'Bring the relevant conversations together',
-    'Connect Gmail and opt into read-only monitoring. JobFlow keeps related replies and your configured job alerts here.',
+    'Connect Gmail and opt into read-only monitoring. Synapse keeps related replies and your configured job alerts here.',
     '/settings?tab=gmail',
     'Gmail settings',
 ); ?></section>

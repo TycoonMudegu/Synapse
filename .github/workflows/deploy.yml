@@ -1,0 +1,144 @@
+name: Deploy Synapse
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+        inputs:
+            retry_failed:
+                description: Retry a reviewed interrupted migration
+                type: boolean
+                default: false
+            backup_window_override:
+                description: Bypass only the backup time window for an emergency release
+                type: boolean
+                default: false
+            backup_window_override_reason:
+                description: Reason for the emergency time-window override
+                type: string
+                default: ''
+
+permissions:
+    contents: read
+
+concurrency:
+    group: synapse-production
+    cancel-in-progress: false
+
+jobs:
+    verify:
+        uses: ./.github/workflows/ci.yml
+    deploy:
+        needs: verify
+        runs-on: ubuntu-latest
+        timeout-minutes: 35
+        environment: production
+        env:
+            DB_DEPLOY_RELEASE: ${{ github.sha }}
+            DB_DEPLOY_BASE_URL: ${{ vars.DB_DEPLOY_BASE_URL || secrets.DB_DEPLOY_BASE_URL || 'https://jobflow.mystuffs.co.ke' }}
+            DB_DEPLOY_SECRET: ${{ secrets.DB_DEPLOY_SECRET }}
+            FTP_SERVER_DIR: ${{ vars.FTP_SERVER_DIR }}
+            FTP_PROTOCOL: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+        steps:
+            - uses: actions/checkout@v6
+            - name: Validate the explicit Synapse destination
+              env:
+                  FTP_SERVER: ${{ secrets.FTP_SERVER }}
+                  FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+                  FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+              run: python3 scripts/db_deploy.py config
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: '8.3'
+                  extensions: curl, dom, fileinfo, mbstring, openssl, pdo_mysql, sodium, zip
+                  tools: composer:v2
+                  coverage: none
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: '24'
+                  cache: npm
+            - name: Install locked dependencies and build assets
+              run: |
+                  composer install --no-dev --classmap-authoritative --prefer-dist --no-interaction
+                  npm ci
+                  npm run build:pdf
+                  npm run build:css
+                  python3 scripts/release.py build
+                  python3 scripts/db_deploy.py build
+            - name: Prepare access rules and empty runtime directories
+              uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  port: ${{ vars.FTP_PORT || '21' }}
+                  protocol: ${{ env.FTP_PROTOCOL }}
+                  security: strict
+                  local-dir: ./.release/bootstrap/
+                  server-dir: ${{ env.FTP_SERVER_DIR }}
+                  state-name: .ftp-synapse-bootstrap.json
+                  dangerous-clean-slate: false
+                  exclude: |
+                      **/.git*
+                      **/.env*
+            - name: Verify hosting environment-file protection
+              id: access
+              run: python3 scripts/db_deploy.py check
+            - name: Upload the authenticated migration package
+              uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  port: ${{ vars.FTP_PORT || '21' }}
+                  protocol: ${{ env.FTP_PROTOCOL }}
+                  security: strict
+                  local-dir: ./.migration-upload/_db-deploy/
+                  server-dir: ${{ env.FTP_SERVER_DIR }}_db-deploy/
+                  state-name: .ftp-migration-${{ github.sha }}.json
+                  dangerous-clean-slate: false
+            - name: Apply migrations and verify the release schema
+              id: migrations
+              env:
+                  DB_DEPLOY_ACCESS_RECEIPT: ${{ steps.access.outputs.access_receipt }}
+                  DB_DEPLOY_RETRY_FAILED: ${{ inputs.retry_failed || false }}
+                  DB_DEPLOY_BACKUP_WINDOW_OVERRIDE: ${{ inputs.backup_window_override || false }}
+                  DB_DEPLOY_BACKUP_WINDOW_OVERRIDE_REASON: ${{ inputs.backup_window_override_reason || '' }}
+              run: python3 scripts/db_deploy.py run
+            - name: Upload the application release
+              id: application
+              uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+              with:
+                  server: ${{ secrets.FTP_SERVER }}
+                  username: ${{ secrets.FTP_USERNAME }}
+                  password: ${{ secrets.FTP_PASSWORD }}
+                  port: ${{ vars.FTP_PORT || '21' }}
+                  protocol: ${{ env.FTP_PROTOCOL }}
+                  security: strict
+                  local-dir: ./.release/application/
+                  server-dir: ${{ env.FTP_SERVER_DIR }}
+                  state-name: .ftp-synapse-application.json
+                  dangerous-clean-slate: false
+                  exclude: |
+                      **/.git*
+                      **/.env*
+                      storage/**
+                      _db-deploy/**
+            - name: Verify the public site and PDF worker
+              id: smoke
+              run: python3 scripts/release.py smoke
+            - name: Record deployment outcome
+              if: always()
+              env:
+                  MIGRATIONS_RESULT: ${{ steps.migrations.outcome }}
+                  APPLICATION_RESULT: ${{ steps.application.outcome }}
+                  SMOKE_RESULT: ${{ steps.smoke.outcome }}
+              run: |
+                  python3 - <<'PY'
+                  import os
+                  with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as report:
+                      report.write('\n## Synapse release\n\n')
+                      for stage in ('MIGRATIONS_RESULT', 'APPLICATION_RESULT', 'SMOKE_RESULT'):
+                          report.write(f"- {stage}: {os.environ.get(stage) or 'not run'}\n")
+                      report.write('\nThe site is deployed only when migrations, application upload and public checks all succeed.\n')
+                  PY

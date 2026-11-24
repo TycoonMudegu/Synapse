@@ -32,11 +32,24 @@ final class ApplicationController
     {
         $repository = new ApplicationRepository();
         $application = $repository->get(Auth::id(), $id);
+        $documents = (new DocumentRepository())->all(Auth::id());
         View::render('pages/application', [
             'title' => 'Application workspace',
             'active' => 'applications',
             'application' => $application,
-            'documents' => (new DocumentRepository())->all(Auth::id()),
+            'manualAlert' => (new \App\Repositories\ManualJobAlertRepository())->forJob(
+                Auth::id(),
+                (int) $application['job_id'],
+            ),
+            'documents' => $documents,
+            'preserveLetter' =>
+                (new \App\Repositories\SettingsRepository())->get(Auth::id(), 'documents')[
+                    'layout_mode'
+                ] === 'preserve' &&
+                (bool) array_filter(
+                    $documents,
+                    fn($document) => $document['kind'] === 'cover_letter_template',
+                ),
             'letter' => $repository->letter(Auth::id(), $id),
             'transitions' => ApplicationService::TRANSITIONS[$application['status']] ?? [],
         ]);

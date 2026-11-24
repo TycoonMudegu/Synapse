@@ -59,6 +59,22 @@ final class JobRepository extends Repository
             throw new HttpException('Job not found.', 404);
     }
 
+    public function awaitingAnalysis(int $userId): array
+    {
+        return $this->rows(
+            "SELECT j.id FROM job_listings j LEFT JOIN match_results m ON m.job_id = j.id AND m.user_id = j.user_id WHERE j.user_id = ? AND m.job_id IS NULL AND j.status = 'saved' AND (j.deadline IS NULL OR j.deadline >= CURDATE()) AND NOT EXISTS (SELECT 1 FROM background_tasks t WHERE t.user_id = j.user_id AND t.type = 'analyse_job' AND CAST(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json, '$.job_id')) AS UNSIGNED) = j.id AND (t.status IN ('pending', 'running') OR (t.status = 'failed' AND t.created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)))) ORDER BY j.id DESC LIMIT 10",
+            [$userId],
+        );
+    }
+
+    public function emailOpportunities(int $userId): int
+    {
+        return (int) $this->query(
+            "SELECT COUNT(*) FROM job_listings WHERE user_id = ? AND application_method = 'email' AND application_email IS NOT NULL AND application_email <> '' AND status <> 'expired' AND (deadline IS NULL OR deadline >= CURDATE())",
+            [$userId],
+        )->fetchColumn();
+    }
+
     public function duplicateId(int $userId, array $normalised): ?int
     {
         $existing = $this->one(

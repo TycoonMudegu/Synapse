@@ -22,10 +22,19 @@ final class UrlGuard
         if (str_contains($ip, ':')) {
             // Permit only global unicast IPv6; reject IPv4-mapped and transition ranges.
             $packed = inet_pton($ip);
-            return $packed !== false &&
-                (ord($packed[0]) & 0xe0) === 0x20 &&
-                !str_starts_with(strtolower($ip), '2001:') &&
-                !str_starts_with(strtolower($ip), '2002:');
+            if ($packed === false || (ord($packed[0]) & 0xe0) !== 0x20) {
+                return false;
+            }
+            $prefix = unpack('nfirst/nsecond', substr($packed, 0, 4));
+            // IANA special-use: 2001::/23, documentation 2001:db8::/32,
+            // 6to4 2002::/16, and documentation 3fff::/20. Other 2001::
+            // allocations include ordinary public Google API addresses.
+            return !(
+                ($prefix['first'] === 0x2001 &&
+                    ($prefix['second'] < 0x0200 || $prefix['second'] === 0x0db8)) ||
+                $prefix['first'] === 0x2002 ||
+                ($prefix['first'] === 0x3fff && $prefix['second'] < 0x1000)
+            );
         }
         $octets = array_map('intval', explode('.', $ip));
         if ($octets[0] >= 224 || ($octets[0] === 100 && $octets[1] >= 64 && $octets[1] <= 127)) {

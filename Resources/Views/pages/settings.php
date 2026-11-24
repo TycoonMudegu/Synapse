@@ -1,6 +1,6 @@
 <div class="page-heading">
     <div>
-        <div class="eyebrow mb-2">MAKE JOBFLOW YOUR OWN</div>
+        <div class="eyebrow mb-2">MAKE SYNAPSE YOUR OWN</div>
         <h1>Settings</h1>
         <p>A few thoughtful choices. A workspace that works the way you do.</p>
     </div>
@@ -15,7 +15,7 @@
         'automation' => 'Automation',
         'documents' => 'Documents',
         'security' => 'Security',
-        'system' => 'System',
+
     ]
     as $key => $name
 ): ?>
@@ -59,6 +59,10 @@ $checkField = static function (string $name, string $title, bool $checked): void
     </label>
     <?php
 };
-require BASE_PATH . '/Resources/Views/pages/settings/' . $tab . '.php';
+if ($tab === 'automation' && !(new \App\Services\Entitlements())->paid(\App\Services\Security\Auth::id())) {
+    require BASE_PATH . '/Resources/Views/components/upgrade.php';
+} else {
+    require BASE_PATH . '/Resources/Views/pages/settings/' . $tab . '.php';
+}
 ?>
 </div>

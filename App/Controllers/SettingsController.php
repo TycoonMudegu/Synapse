@@ -25,6 +25,26 @@ use App\Services\SettingsService;
 
 final class SettingsController
 {
+    public function preferences(Request $request): void
+    {
+        (new \App\Services\OnboardingService())->preferences(Auth::id(), $request->all());
+        Response::json([
+            'ok' => true,
+            'message' => 'Your job search preferences are saved.',
+            'reload' => true,
+        ]);
+    }
+
+    public function connectAi(Request $request): void
+    {
+        (new \App\Services\OnboardingService())->provider(Auth::id(), $request->all());
+        Response::json([
+            'ok' => true,
+            'message' => 'Your AI key is saved privately.',
+            'reload' => true,
+        ]);
+    }
+
     public function index(Request $request): void
     {
         $section = $_GET['tab'] ?? 'general';
@@ -53,11 +73,15 @@ final class SettingsController
         }
         (new \App\Services\Discovery\SourcePresetService())->refreshEmailHealth(Auth::id());
         $workerFile = BASE_PATH . '/storage/worker-heartbeat';
+        $googleJobs = $repository->get(Auth::id(), 'google_jobs');
+        $googleJobs['configured'] = $googleJobs['encrypted_key'] !== '';
+        unset($googleJobs['encrypted_key']);
         View::render('pages/settings', [
             'title' => 'Settings',
             'active' => 'settings',
             'tab' => $section,
             'settings' => $repository->get(Auth::id(), $section),
+            'googleJobs' => $googleJobs,
             'providers' => $repository->providers(Auth::id()),
             'usage' => $repository->usage(Auth::id()),
             'sources' => (new SourceRepository())->all(Auth::id()),
@@ -65,6 +89,10 @@ final class SettingsController
             'alertCounts' => (new \App\Repositories\AlertRepository())->counts(Auth::id()),
             'connection' => $connection,
             'gmailConfigured' => (new GmailService())->configured(),
+            'automationStatus' =>
+                $section === 'automation'
+                    ? (new \App\Services\AutomationService())->status(Auth::id())
+                    : null,
             'sessions' =>
                 $section === 'security' ? (new UserRepository())->sessions(Auth::id()) : [],
             'runs' => $section === 'system' ? (new QueueRepository())->runs(Auth::id()) : [],
@@ -76,7 +104,11 @@ final class SettingsController
     public function save(Request $request): void
     {
         (new SettingsService())->save(Auth::id(), $request->string('section'), $request->all());
-        Response::json(['ok' => true, 'message' => 'Settings saved.']);
+        Response::json([
+            'ok' => true,
+            'message' => 'Settings saved.',
+            'reload' => in_array($request->string('section'), ['google_jobs', 'automation'], true),
+        ]);
     }
 
     public function provider(Request $request): void
@@ -105,7 +137,7 @@ final class SettingsController
         $keys = $key === '' ? [] : [$key];
         $ids = (new \App\Services\Discovery\SourcePresetService())->install(Auth::id(), $keys);
         $message =
-            'Sources added. Check public pages to enable BrighterMonday or Fuzu. Gmail is optional for email collection.';
+            'Sources added. Check each source to enable collection. Google Jobs and Indeed use your SerpApi connection. Gmail is optional for email alerts.';
         if (isset($ids['myjobmag'])) {
             $repository = new SourceRepository();
             $source = $repository->get(Auth::id(), $ids['myjobmag']);
@@ -113,7 +145,7 @@ final class SettingsController
                 (new DiscoveryService())->adapter('myjobmag')->validate($source);
                 $repository->health(Auth::id(), $source['id'], true);
                 $message =
-                    'MyJobMag connected and collection is queued. Check the BrighterMonday and Fuzu public sources to enable them.';
+                    'MyJobMag connected and collection is queued. Check the other sources to enable them; Google Jobs and Indeed need a SerpApi key.';
                 (new QueueRepository())->enqueue(Auth::id(), 'discovery');
             } catch (\Throwable $exception) {
                 $error =

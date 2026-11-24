@@ -12,6 +12,7 @@ use App\Repositories\IntegrationRepository;
 use App\Repositories\SettingsRepository;
 use App\Services\Documents\DocumentService;
 use App\Services\Security\Crypto;
+use App\Services\Security\GoogleOAuthConfig;
 
 final class GmailService
 {
@@ -21,8 +22,8 @@ final class GmailService
 
     public function configured(): bool
     {
-        return Env::get('GOOGLE_CLIENT_ID') !== '' &&
-            Env::get('GOOGLE_CLIENT_SECRET') !== '' &&
+        return GoogleOAuthConfig::clientId() !== '' &&
+            GoogleOAuthConfig::clientSecret() !== '' &&
             Env::get('GOOGLE_REDIRECT_URI') !== '';
     }
 
@@ -30,7 +31,7 @@ final class GmailService
     {
         if (!$this->configured()) {
             throw new HttpException(
-                'Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI in the server environment first.',
+                'Configure Google OAuth credentials and GOOGLE_REDIRECT_URI in the server environment first.',
             );
         }
         $settings = (new SettingsRepository())->get($userId, 'gmail');
@@ -43,10 +44,11 @@ final class GmailService
             'user_id' => $userId,
             'expires' => time() + 600,
             'scopes' => implode(' ', $scopes),
+            'redirect_uri' => Env::get('GOOGLE_REDIRECT_URI'),
         ];
         return 'https://accounts.google.com/o/oauth2/v2/auth?' .
             http_build_query([
-                'client_id' => Env::get('GOOGLE_CLIENT_ID'),
+                'client_id' => GoogleOAuthConfig::clientId(),
                 'redirect_uri' => Env::get('GOOGLE_REDIRECT_URI'),
                 'response_type' => 'code',
                 'scope' => implode(' ', $scopes),
@@ -75,7 +77,7 @@ final class GmailService
         $tokens = $this->tokenRequest([
             'code' => $code,
             'grant_type' => 'authorization_code',
-            'redirect_uri' => Env::get('GOOGLE_REDIRECT_URI'),
+            'redirect_uri' => $pending['redirect_uri'] ?? Env::get('GOOGLE_REDIRECT_URI'),
         ]);
         if (empty($tokens['access_token']) || empty($tokens['refresh_token'])) {
             throw new HttpException(
@@ -119,8 +121,8 @@ final class GmailService
             ['Content-Type: application/x-www-form-urlencoded'],
             http_build_query([
                 ...$data,
-                'client_id' => Env::get('GOOGLE_CLIENT_ID'),
-                'client_secret' => Env::get('GOOGLE_CLIENT_SECRET'),
+                'client_id' => GoogleOAuthConfig::clientId(),
+                'client_secret' => GoogleOAuthConfig::clientSecret(),
             ]),
         );
         $result = json_decode($response['body'], true);
@@ -195,7 +197,7 @@ final class GmailService
         );
         if (!$revoked) {
             throw new HttpException(
-                'Gmail is disconnected locally. Google revocation failed; remove JobFlow access from your Google account permissions.',
+                'Gmail is disconnected locally. Google revocation failed; remove Synapse access from your Google account permissions.',
             );
         }
     }
@@ -282,7 +284,7 @@ final class GmailService
                 'Content-Transfer-Encoding: base64',
                 '',
                 chunk_split(
-                    base64_encode(file_get_contents((new DocumentService())->path($document))),
+                    base64_encode((new \App\Services\Documents\DocumentStorage())->read($document)),
                 ),
             ];
         }

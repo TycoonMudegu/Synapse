@@ -80,7 +80,13 @@ final class Exporter
             throw new HttpException('Choose PDF or DOCX.');
         }
         $path = bin2hex(random_bytes(24)) . '.' . $format;
-        $absolute = BASE_PATH . '/storage/private/' . $path;
+        $cloud = DocumentStorage::enabled();
+        $absolute = $cloud
+            ? tempnam(sys_get_temp_dir(), 'synapse-export-')
+            : BASE_PATH . '/storage/private/' . $path;
+        if ($absolute === false) {
+            throw new HttpException('The document could not be prepared.', 503);
+        }
         $text = implode(
             "\n\n",
             array_map(
@@ -88,50 +94,82 @@ final class Exporter
                 $sections,
             ),
         );
-        if ($format === 'pdf') {
-            $options = new Options();
-            $options->set('isRemoteEnabled', false);
-            $options->set('isPhpEnabled', false);
-            $options->set('defaultFont', 'DejaVu Sans');
-            $options->set('tempDir', BASE_PATH . '/storage/private');
-            $pdf = new Dompdf($options);
-            $html =
-                '<html><head><meta charset="utf-8"><style>body{font-family:DejaVu Sans;font-size:10pt;line-height:1.6;color:#233847}h2{font-size:12pt;color:#326080;margin:18px 0 5px}p{margin:0 0 10px;white-space:pre-line}@page{margin:45px}</style></head><body>';
-            foreach ($sections as $section) {
-                $html .=
-                    ($section['title'] !== '' ? '<h2>' . e($section['title']) . '</h2>' : '') .
-                    '<p>' .
-                    nl2br(e($section['text'])) .
-                    '</p>';
+        try {
+            if ($format === 'pdf') {
+                $options = new Options();
+                $options->set('isRemoteEnabled', false);
+                $options->set('isPhpEnabled', false);
+                $options->set('defaultFont', 'DejaVu Sans');
+                $options->set(
+                    'tempDir',
+                    $cloud ? sys_get_temp_dir() : BASE_PATH . '/storage/private',
+                );
+                $pdf = new Dompdf($options);
+                $lineHeight = $kind === 'cover_letter' ? '1.45' : '1.4';
+                $html =
+                    '<html><head><meta charset="utf-8"><style>body{font-family:DejaVu Sans;font-size:10pt;line-height:' .
+                    $lineHeight .
+                    ';color:#233847}h2{font-size:12pt;color:#326080;margin:18px 0 5px}p{margin:0 0 10px;white-space:normal}.cv-section{page-break-inside:avoid}@page{margin:45px}</style></head><body>';
+                foreach ($sections as $section) {
+                    $html .=
+                        '<div' .
+                        ($kind === 'tailored_cv' ? ' class="cv-section"' : '') .
+                        '>' .
+                        ($section['title'] !== '' ? '<h2>' . e($section['title']) . '</h2>' : '') .
+                        '<p>' .
+                        nl2br(e($section['text'])) .
+                        '</p></div>';
+                }
+                $pdf->loadHtml($html . '</body></html>', 'UTF-8');
+                $pdf->setPaper('A4');
+                $pdf->render();
+                file_put_contents($absolute, $pdf->output(), LOCK_EX);
+            } else {
+                $this->docx($sections, $absolute);
             }
-            $pdf->loadHtml($html . '</body></html>', 'UTF-8');
-            $pdf->setPaper('A4');
-            $pdf->render();
-            file_put_contents($absolute, $pdf->output(), LOCK_EX);
-        } else {
-            $this->docx($sections, $absolute);
+            PrivateFiles::protect($absolute);
+            $stored = $cloud
+                ? (new DocumentStorage())->put(
+                    file_get_contents($absolute),
+                    $userId,
+                    $format === 'pdf' ? 'application/pdf' : RendererClient::DOCX,
+                    $format,
+                )
+                : [];
+            $repository = new DocumentRepository();
+            $version = 1;
+            if ($parentId !== null) {
+                $parent = $repository->get($userId, $parentId);
+                $version = (int) $parent['version'] + 1;
+            }
+            $id = $repository->create($userId, [
+                'name' => str_replace('_', ' ', $name) . '.' . $format,
+                'kind' => $kind,
+                'storage_path' => $path,
+                'mime_type' =>
+                    $format === 'pdf'
+                        ? 'application/pdf'
+                        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'byte_size' => filesize($absolute),
+                'extracted_text' => $text,
+                'parent_id' => $parentId,
+                'version' => $version,
+                ...$stored,
+            ]);
+            return $id;
+        } catch (\Throwable $error) {
+            if ($cloud && !empty($stored)) {
+                try {
+                    (new DocumentStorage())->delete($stored);
+                } catch (\Throwable) {
+                }
+            }
+            throw $error;
+        } finally {
+            if ($cloud && is_file($absolute)) {
+                unlink($absolute);
+            }
         }
-        chmod($absolute, 0600);
-        $repository = new DocumentRepository();
-        $version = 1;
-        if ($parentId !== null) {
-            $parent = $repository->get($userId, $parentId);
-            $version = (int) $parent['version'] + 1;
-        }
-        $id = $repository->create($userId, [
-            'name' => $name . '.' . $format,
-            'kind' => $kind,
-            'storage_path' => $path,
-            'mime_type' =>
-                $format === 'pdf'
-                    ? 'application/pdf'
-                    : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'byte_size' => filesize($absolute),
-            'extracted_text' => $text,
-            'parent_id' => $parentId,
-            'version' => $version,
-        ]);
-        return $id;
     }
 
     private function docx(array $sections, string $path): void
@@ -172,5 +210,65 @@ final class Exporter
                 '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="900" w:right="900" w:bottom="900" w:left="900"/></w:sectPr></w:body></w:document>',
         );
         $zip->close();
+    }
+
+    public function rendered(
+        int $userId,
+        string $bytes,
+        string $format,
+        string $name,
+        string $kind,
+        string $text,
+        ?int $parentId = null,
+    ): int {
+        if (
+            !in_array($format, ['pdf', 'docx'], true) ||
+            !str_starts_with($bytes, $format === 'pdf' ? '%PDF-' : 'PK') ||
+            strlen($bytes) > 20 * 1024 * 1024
+        ) {
+            throw new HttpException('The rendered document is invalid or exceeds the size limit.');
+        }
+        $repository = new DocumentRepository();
+        $parent = $parentId ? $repository->get($userId, $parentId) : null;
+        $storage = bin2hex(random_bytes(24)) . '.' . $format;
+        $cloud = DocumentStorage::enabled();
+        $stored = $cloud
+            ? (new DocumentStorage())->put(
+                $bytes,
+                $userId,
+                $format === 'pdf' ? 'application/pdf' : RendererClient::DOCX,
+                $format,
+            )
+            : [];
+        $path = $cloud ? null : BASE_PATH . '/storage/private/' . $storage;
+        try {
+            if (!$cloud && file_put_contents($path, $bytes, LOCK_EX) !== strlen($bytes)) {
+                throw new HttpException('The document could not be saved.', 500);
+            }
+            if (!$cloud) {
+                PrivateFiles::protect($path);
+            }
+            return $repository->create($userId, [
+                'name' => str_replace('_', ' ', $name) . '.' . $format,
+                'kind' => $kind,
+                'storage_path' => $storage,
+                'mime_type' => $format === 'pdf' ? 'application/pdf' : RendererClient::DOCX,
+                'byte_size' => strlen($bytes),
+                'extracted_text' => $text,
+                'parent_id' => $parentId,
+                'version' => $parent ? (int) $parent['version'] + 1 : 1,
+                ...$stored,
+            ]);
+        } catch (\Throwable $exception) {
+            if ($cloud) {
+                try {
+                    (new DocumentStorage())->delete($stored);
+                } catch (\Throwable) {
+                }
+            } elseif (is_file($path)) {
+                unlink($path);
+            }
+            throw $exception;
+        }
     }
 }

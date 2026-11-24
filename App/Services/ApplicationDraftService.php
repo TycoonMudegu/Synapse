@@ -34,6 +34,7 @@ final class ApplicationDraftService
                 $value = (int) ($data[$field] ?? 0);
                 if ($value > 0) {
                     $document = (new DocumentRepository())->get($userId, $value);
+                    \App\Services\Documents\DocumentStorage::assertAvailable($document);
                     if (
                         !in_array(
                             $document['mime_type'],
@@ -103,6 +104,19 @@ final class ApplicationDraftService
                 throw new HttpException(
                     'Return this application to review before editing the cover letter.',
                 );
+            }
+            $documentSettings = (new \App\Repositories\SettingsRepository())->get(
+                $userId,
+                'documents',
+            );
+            if ($documentSettings['layout_mode'] === 'preserve') {
+                foreach ((new DocumentRepository())->all($userId) as $document) {
+                    if ($document['kind'] === 'cover_letter_template') {
+                        throw new HttpException(
+                            'To keep your cover letter design, regenerate from your DOCX template or upload an edited document and attach it. Plain-text editing is available with the simple app layout.',
+                        );
+                    }
+                }
             }
             $content = Validator::text($input['content'] ?? '', 'cover letter', 20000, true);
             $format = Validator::choice($input['format'] ?? 'pdf', 'document format', [

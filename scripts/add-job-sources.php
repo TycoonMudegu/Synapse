@@ -22,7 +22,7 @@ if (!(new UserRepository())->byId($userId)) {
 $ids = (new SourcePresetService())->install($userId);
 $sources = new SourceRepository();
 foreach ($ids as $key => $sourceId) {
-    if (in_array('--public', $argv, true) && $key !== 'myjobmag') {
+    if (in_array('--public', $argv, true) && in_array($key, ['brightermonday', 'fuzu'], true)) {
         (new SourcePresetService())->selectMode($userId, $sourceId, 'public');
     }
     $source = $sources->get($userId, $sourceId);
@@ -34,7 +34,7 @@ foreach ($ids as $key => $sourceId) {
     try {
         (new DiscoveryService())->adapter($source['adapter'])->validate($source);
         $sources->health($userId, $sourceId, true);
-        echo $source['name'] . ": public connection and vacancy fields verified.\n";
+        echo $source['name'] . ": connection and vacancy fields verified.\n";
     } catch (Throwable $exception) {
         $message =
             $exception instanceof \App\Core\HttpException

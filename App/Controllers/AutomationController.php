@@ -22,7 +22,7 @@ final class AutomationController
         Response::json([
             'ok' => true,
             'task_id' => $task,
-            'message' => 'Job search queued. The CLI worker will process it.',
+            'message' => 'Your job search is queued. New opportunities will appear here when it finishes.',
         ]);
     }
 

@@ -1,3 +1,4 @@
+<?php require BASE_PATH . '/Resources/Views/components/automation-status.php'; ?>
 <div class="notice warm">
     <?= icon('shield-check'); ?>
     <div>
@@ -10,7 +11,7 @@
 </div>
 <section class="panel">
     <div class="panel-header"><h2>Application automation</h2></div>
-    <form action="<?= e(app_base_path()); ?>/api/settings" data-async class="panel-body form-stack">
+    <form action="<?= e(app_base_path()); ?>/api/settings" x-data="asyncForm" x-on:submit.prevent="submit($event)" class="panel-body form-stack">
         <input type="hidden" name="section" value="automation" />
         <div class="form-error" hidden role="alert"></div>
         <div class="field">
@@ -28,6 +29,8 @@
                 <?php endforeach; ?>
             </select>
         </div>
+        <p class="setup-note">Automatic mode also enables scheduled search, matching and document preparation. Your daily limit and factual review requirements still apply.</p>
+        <p class="setup-note">When an eligible job meets your Automatic match threshold but requires a manual application, we email it to your account email and continue with the next eligible email opportunity. These alerts do not count as applications.</p>
         <?php $checkField(
     'confirm_automatic',
     'I explicitly enable Automatic mode and authorise submission of reviewed, verified applications that meet these rules.',
@@ -63,9 +66,8 @@ $checkField(
 $checkField('paused', 'Pause all background automation.', $settings['paused']);
 ?>
         <div class="soft-note">
-            The CLI worker and cron scheduler must be running. Changing these settings does not
-            start a server process. New AI-generated documents always need factual review; changing
-            the profile invalidates approvals.
+            Prepared documents appear in Applications for a factual check. Your daily limit controls
+            sending. Updating your profile requires existing application documents to be checked again.
         </div>
         <div class="form-actions">
             <button class="btn btn-primary">Save automation settings</button>

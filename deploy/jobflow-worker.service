@@ -1,5 +1,5 @@
 [Unit]
-Description=JobFlow background worker
+Description=Synapse background worker
 After=network.target mariadb.service
 
 [Service]

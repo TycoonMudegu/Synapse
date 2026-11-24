@@ -42,7 +42,7 @@
 ): ?>
             <button
                 class="btn"
-                data-action="<?= e(app_base_path()); ?>/api/gmail/test"
+                x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/gmail/test"
                 data-confirm="Send a connection test email to your connected Gmail account?"
                 data-loading="Sending test email…"
             >
@@ -50,7 +50,7 @@
             </button>
             <button
                 class="btn btn-danger"
-                data-action="<?= e(app_base_path()); ?>/api/gmail/disconnect"
+                x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/gmail/disconnect"
                 data-confirm="Disconnect Gmail and remove stored tokens?"
             >
                 Disconnect
@@ -61,7 +61,7 @@
 </section>
 <section class="panel">
     <div class="panel-header"><h2>Sending & relevant correspondence</h2></div>
-    <form action="<?= e(app_base_path()); ?>/api/settings" data-async class="panel-body form-stack">
+    <form action="<?= e(app_base_path()); ?>/api/settings" x-data="asyncForm" x-on:submit.prevent="submit($event)" class="panel-body form-stack">
         <input type="hidden" name="section" value="gmail" />
         <div class="form-error" hidden role="alert"></div>
         <div class="field">
@@ -76,7 +76,7 @@ $checkField(
 );
 $checkField(
     'response_tracking',
-    'Read replies in known JobFlow application threads.',
+    'Read replies in known Synapse application threads.',
     $settings['response_tracking'],
 );
 $inputField(
@@ -95,7 +95,7 @@ $inputField(
 ?>
         <div class="soft-note">
             Sending requests gmail.send. Monitoring adds gmail.readonly only when enabled. Save
-            these preferences, then reconnect to grant any additional permissions. JobFlow never
+            these preferences, then reconnect to grant any additional permissions. Synapse never
             modifies unrelated email. Possible interview invitations are flagged for your review.
         </div>
         <div class="form-actions">

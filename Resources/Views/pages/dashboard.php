@@ -5,12 +5,13 @@
         <p>Let's find your next opportunity. Here's where things stand.</p>
     </div>
     <div class="heading-actions">
-        <button class="btn" data-action="<?= e(app_base_path()); ?>/api/automation/search" data-loading="Queuing search…">
+        <button class="btn" x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/automation/search" data-loading="Queuing search…">
             <?= icon('refresh-cw'); ?>Search jobs
         </button>
         <a class="btn btn-primary" href="<?= e(app_base_path()); ?>/jobs/add"><?= icon('plus'); ?>Add job</a>
     </div>
 </div>
+<?php if ($automation['mode'] === 'automatic'): require BASE_PATH . '/Resources/Views/components/automation-status.php'; endif; ?>
 <div class="welcome-banner">
     <div class="welcome-copy">
         <div class="eyebrow">YOUR NEXT CHAPTER IS OUT THERE</div>
@@ -84,7 +85,7 @@
             <?php if ($jobs === []): ?> <?php empty_state(
                     'compass',
                     'Your next opportunity starts here',
-                    'Add a job you have your eye on, or connect a permitted source to start discovering.',
+                    'Add a job you have your eye on, or choose your job sites in Settings to start discovering.',
                     '/jobs/add',
                     'Add your first job',
                 ); ?> <?php else:foreach ($jobs as $job): ?>
@@ -173,7 +174,7 @@
                     [
                         count(array_filter($providers, fn($p) => $p['health'] === 'connected')) > 0,
                         'Connect your AI provider',
-                        'Your model. Your budget.',
+                        'Bring your own key, or use Plus AI.',
                         '/settings?tab=ai',
                     ],
                     [
@@ -184,7 +185,7 @@
                             ),
                         ) > 0,
                         'Choose your job sources',
-                        'Discover through permitted feeds.',
+                        'Your selected job sites, in one place.',
                         '/settings?tab=discovery',
                     ],
                 ];
@@ -253,7 +254,7 @@
                     <strong><?= e($latestRun['sources_checked']); ?> / <?= e($latestRun['records_processed']); ?></strong>
                 </div>
                 <?php endif; ?>
-                <div class="soft-note mt-4"><?= $latestRun && $latestRun['error_summary'] ? e($latestRun['error_summary']) : 'You stay in control. In Manual mode, JobFlow prepares applications and never sends them.'; ?></div>
+                <div class="soft-note mt-4"><?= $latestRun && $latestRun['error_summary'] ? e($latestRun['error_summary']) : 'You stay in control. In Manual mode, Synapse prepares applications and never sends them.'; ?></div>
                 <a class="text-link mt-4" href="<?= e(app_base_path()); ?>/settings?tab=automation">
                     Manage automation<?= icon('arrow-right'); ?>
                 </a>
@@ -284,7 +285,7 @@
 <div class="quick-actions">
     <span class="eyebrow">QUICK ACTIONS</span>
     <a class="quick-action" href="<?= e(app_base_path()); ?>/jobs/add"><?= icon('plus'); ?>Add a job</a>
-    <button class="quick-action" data-open-dialog="upload-dialog">
+    <button class="quick-action" x-on:click="$store.app.openDialog('upload-dialog')">
         <?= icon('upload'); ?>Upload a CV
     </button>
     <a class="quick-action" href="<?= e(app_base_path()); ?>/applications?status=ready_for_review">

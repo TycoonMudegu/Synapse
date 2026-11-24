@@ -1,3 +1,4 @@
+<div x-data="jobImport">
 <div class="page-heading">
     <div>
         <div class="eyebrow mb-2">GOOD OPPORTUNITIES COME FROM EVERYWHERE</div>
@@ -20,7 +21,7 @@
         type="button"
         class="import-tab <?= $method === 'manual' ? 'selected' : ''; ?>"
         id="tab-<?= e($method); ?>"
-        data-import-tab="<?= e($method); ?>"
+        x-on:click="choose($el.dataset.importTab)" x-on:keydown.arrow-left.prevent="moveTab($el, -1)" x-on:keydown.arrow-right.prevent="moveTab($el, 1)" x-on:keydown.home.prevent="edgeTab(false)" x-on:keydown.end.prevent="edgeTab(true)" x-bind:class="{ selected: method === $el.dataset.importTab }" x-bind:aria-selected="method === $el.dataset.importTab" x-bind:tabindex="method === $el.dataset.importTab ? 0 : -1" data-import-tab="<?= e($method); ?>"
         role="tab"
         aria-controls="import-<?= e($method); ?>"
         aria-selected="<?= $method === 'manual' ? 'true' : 'false'; ?>"
@@ -29,12 +30,12 @@
     </button>
     <?php endforeach; ?>
 </div>
-<section class="panel mb-6" id="import-url" role="tabpanel" aria-labelledby="tab-url" hidden>
+<section class="panel mb-6" id="import-url" x-bind:hidden="method !== 'url'" role="tabpanel" aria-labelledby="tab-url" hidden>
     <div class="panel-header">
         <h2>Import a public vacancy URL</h2>
         <span class="badge badge-blue">AI provider required</span>
     </div>
-    <form class="panel-body form-stack" data-extract-form>
+    <form class="panel-body form-stack" x-on:submit.prevent="extract($event)">
         <input type="hidden" name="type" value="url" />
         <div class="form-error" hidden role="alert"></div>
         <div class="field">
@@ -49,7 +50,7 @@
         </div>
         <label class="check-label">
             <input type="checkbox" name="permission_confirmed" value="1" required />
-            I have confirmed that this public page permits automated access. JobFlow will also check
+            I have confirmed that this public page permits automated access. Synapse will also check
             robots directives.
         </label>
         <button
@@ -61,12 +62,12 @@
         </button>
     </form>
 </section>
-<section class="panel mb-6" id="import-poster" role="tabpanel" aria-labelledby="tab-poster" hidden>
+<section class="panel mb-6" id="import-poster" x-bind:hidden="method !== 'poster'" role="tabpanel" aria-labelledby="tab-poster" hidden>
     <div class="panel-header">
         <h2>Bring the advertisement with you</h2>
         <span class="badge badge-blue">Vision-capable model for images</span>
     </div>
-    <form class="panel-body form-stack" data-poster-form enctype="multipart/form-data">
+    <form class="panel-body form-stack" x-on:submit.prevent="extract($event, true)" enctype="multipart/form-data">
         <input type="hidden" name="kind" value="job_poster" />
         <input type="hidden" name="inline" value="1" />
         <div class="form-error" hidden role="alert"></div>
@@ -91,12 +92,12 @@
         </button>
     </form>
 </section>
-<section class="panel mb-6" id="import-text" role="tabpanel" aria-labelledby="tab-text" hidden>
+<section class="panel mb-6" id="import-text" x-bind:hidden="method !== 'text'" role="tabpanel" aria-labelledby="tab-text" hidden>
     <div class="panel-header">
         <h2>Paste the complete advertisement</h2>
         <span class="badge badge-blue">AI provider required</span>
     </div>
-    <form class="panel-body form-stack" data-extract-form>
+    <form class="panel-body form-stack" x-on:submit.prevent="extract($event)">
         <input type="hidden" name="type" value="text" />
         <div class="form-error" hidden role="alert"></div>
         <div class="field">
@@ -134,7 +135,7 @@
             <p>Keep unknown facts blank. You can analyse the job after saving it.</p>
         </div>
     </div>
-    <form action="<?= e(app_url(isset($editingJob) ? '/api/jobs/' . $editingJob['id'] : '/api/jobs')); ?>" method="post" class="panel-body" data-async id="job-details-form">
+    <form action="<?= e(app_url(isset($editingJob) ? '/api/jobs/' . $editingJob['id'] : '/api/jobs')); ?>" method="post" class="panel-body" x-data="asyncForm" x-on:submit.prevent="submit($event)" id="job-details-form">
         <div class="form-error" hidden role="alert"></div>
         <input type="hidden" name="poster_document_id" value="" />
         <div class="form-grid">
@@ -168,7 +169,7 @@
             </div>
             <div class="field">
                 <label for="employment_type">Employment type</label>
-                <select id="employment_type" name="employment_type" data-selected-value="<?= e($editingJob['employment_type'] ?? ''); ?>">
+                <select id="employment_type" name="employment_type" x-init="$store.app.restoreSelection($el)" data-selected-value="<?= e($editingJob['employment_type'] ?? ''); ?>">
                     <?php foreach (
                 [
                     'not_specified',
@@ -215,7 +216,7 @@
             </div>
             <div class="field">
                 <label for="workplace">Work arrangement</label>
-                <select name="workplace" data-selected-value="<?= e($editingJob['workplace'] ?? ''); ?>" id="workplace">
+                <select name="workplace" x-init="$store.app.restoreSelection($el)" data-selected-value="<?= e($editingJob['workplace'] ?? ''); ?>" id="workplace">
                     <?php foreach (
                 ['not_specified', 'remote', 'hybrid', 'office']
                 as $type
@@ -263,7 +264,7 @@
             </div>
             <div class="field">
                 <label for="application_method">Application method</label>
-                <select name="application_method" data-selected-value="<?= e($editingJob['application_method'] ?? ''); ?>" id="application_method">
+                <select name="application_method" x-init="$store.app.restoreSelection($el)" data-selected-value="<?= e($editingJob['application_method'] ?? ''); ?>" id="application_method">
                     <option value="manual">Manual completion</option>
                     <option value="email">Email application</option>
                     <option value="external">Employer website / external form</option>
@@ -309,3 +310,63 @@
         </div>
     </form>
 </section>
+
+</div>
+<script nonce="<?= e(CSP_NONCE); ?>">
+document.addEventListener('alpine:init', () => {
+    Alpine.data('jobImport', () => ({
+        method: 'manual',
+        busy: false,
+        choose(method, focus = false) {
+            this.method = method;
+            if (focus) this.$nextTick(() => document.querySelector(`[data-import-tab="${method}"]`)?.focus());
+        },
+        moveTab(button, direction) {
+            const tabs = [...document.querySelectorAll('[data-import-tab]')];
+            const next = (tabs.indexOf(button) + direction + tabs.length) % tabs.length;
+            this.choose(tabs[next].dataset.importTab, true);
+        },
+        edgeTab(last) {
+            const tabs = [...document.querySelectorAll('[data-import-tab]')];
+            this.choose(tabs[last ? tabs.length - 1 : 0].dataset.importTab, true);
+        },
+        populate(data) {
+            const form = document.querySelector('#job-details-form');
+            for (const [name, value] of Object.entries(data)) {
+                const field = form.elements.namedItem(name);
+                if (field && field.type !== 'checkbox') field.value = value ?? '';
+            }
+            form.elements.namedItem('verified').checked = false;
+            document.querySelector('#extraction-notice').hidden = false;
+            document.querySelector('#extraction-uncertainties').textContent = data.uncertainties?.length
+                ? `Needs your review: ${data.uncertainties.join(' ')}`
+                : 'Verify all information against the original advertisement before saving.';
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        },
+        async extract(event, poster = false) {
+            if (this.busy) return;
+            const form = event.currentTarget;
+            form.querySelector('.form-error').hidden = true;
+            this.busy = true;
+            try {
+                await this.$store.app.withLoading(event.submitter, async () => {
+                    try {
+                        let data = new FormData(form);
+                        if (poster) {
+                            const uploaded = await this.$store.app.request(this.$store.app.url('/api/documents'), { data });
+                            document.querySelector('#job-details-form').elements.namedItem('poster_document_id').value = uploaded.document.id;
+                            this.$store.app.notify('Poster stored privately. Reading the advertisement…');
+                            data = { type: 'poster', document_id: uploaded.document.id };
+                        }
+                        const extracted = await this.$store.app.request(this.$store.app.url('/api/jobs/extract'), { data });
+                        this.populate(extracted.data);
+                        this.$store.app.notify(extracted.message);
+                    } catch (error) {
+                        this.$store.app.formError(form, error.message + (poster ? ' You can enter the details manually below.' : ''));
+                    }
+                });
+            } finally { this.busy = false; }
+        },
+    }));
+});
+</script>

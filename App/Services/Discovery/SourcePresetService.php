@@ -17,7 +17,10 @@ final class SourcePresetService
         $sources = new SourceRepository();
         $ids = [];
         foreach ($keys as $key) {
-            $definition = SourceCatalog::get($key, $key === 'myjobmag' ? 'public' : $mode);
+            $definition = SourceCatalog::get(
+                $key,
+                isset(SourceCatalog::SOURCES[$key]['sender_domain']) ? $mode : 'public',
+            );
             $ids[$key] = $sources->ensurePreset($userId, $key, $definition);
         }
         if ($sources->emailSources($userId) !== []) {

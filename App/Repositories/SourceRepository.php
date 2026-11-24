@@ -59,6 +59,14 @@ final class SourceRepository extends Repository
         );
     }
 
+    public function invalidatePreset(int $userId, string $key): void
+    {
+        $this->query(
+            "UPDATE job_sources SET enabled = 0, health = 'untested', last_error = NULL, last_checked_at = NULL WHERE user_id = ? AND preset_key = ?",
+            [$userId, $key],
+        );
+    }
+
     public function all(int $userId): array
     {
         return $this->rows('SELECT * FROM job_sources WHERE user_id = ? ORDER BY id DESC', [

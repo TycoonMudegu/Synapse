@@ -106,11 +106,22 @@ foreach (
         '::ffff:127.0.0.1',
         '100.100.100.200',
         '198.18.0.1',
+        '2001::1',
+        '2001:2::1',
+        '2001:10::1',
+        '2001:db8::1',
+        '2001:0db8:0000:0000:0000:0000:0000:0001',
+        '2002:c000:201::1',
+        '3fff:fff::1',
     ]
     as $ip
 ) {
     check('SSRF rejects non-public address ' . $ip, fn() => same(false, UrlGuard::publicIp($ip)));
 }
+check('public Google and Cloudflare IPv6 addresses are accepted', function (): void {
+    same(true, UrlGuard::publicIp('2001:4860:4840:400::'));
+    same(true, UrlGuard::publicIp('2606:4700:4700::1111'));
+});
 foreach (
     [
         'file:///etc/passwd',
@@ -252,6 +263,7 @@ try {
         'fixture-password-12345',
     );
     $fixtures = [$userId, $otherId];
+    $db->prepare("INSERT INTO memberships (user_id, plan) VALUES (?, 'lifetime')")->execute([$userId]);
     $profileInput = [
         'full_name' => 'Fixture Applicant',
         'email' => 'fixture-' . $suffix . '@example.test',

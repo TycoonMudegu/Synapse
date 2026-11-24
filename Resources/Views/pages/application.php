@@ -6,6 +6,9 @@
     </div>
     <span class="badge badge-blue"><?= e(label($application['status'])); ?></span>
 </div>
+<?php if ($application['status'] === 'test_sent'): ?>
+<div class="notice"><?= icon('mail-check'); ?><div><strong>Test email sent.</strong><p>This mock application was sent to the test inbox with its CV and cover letter. It is excluded from real submission totals and the daily application limit.</p></div></div>
+<?php endif; ?>
 <?php if ($application['last_error']): ?>
 <div class="notice warm">
     <?= icon('circle-alert'); ?>
@@ -14,11 +17,22 @@
         <p><?= e($application['last_error']); ?></p>
     </div>
 </div>
-<?php endif; ?> <?php if ($application['confirmation']): ?>
+<?php endif; ?>
+<?php if (!empty($manualAlert) && !$application['submitted_at'] && !in_array($application['status'], ['withdrawn', 'rejected', 'offer'], true)): ?>
+<div class="notice"><?= icon('mail'); ?><div><strong>This job needs a manual application.</strong><p><?= match ($manualAlert['status']) {
+    'sent' => 'We emailed this opportunity to your account email. Nothing has been submitted. Automation continues with other eligible email opportunities.',
+    'sending', 'failed' => 'Email delivery has not been confirmed. You can still apply using the employer link below. Automation continues with other eligible email opportunities.',
+    default => 'An email alert is pending. You can still open the employer link and apply manually. Automation continues with other eligible email opportunities.',
+}; ?></p></div></div>
+<?php endif; ?>
+<?php if ($application['method'] === 'external' && $application['status'] === 'awaiting_external_action'): ?>
+<div class="notice warm"><?= icon('external-link'); ?><div><strong>Finish this application on the employer’s website.</strong><p>Your documents are prepared. Complete the employer’s form and any browser verification, then record the submission confirmation here.</p><?php if ($application['original_url']): ?><a class="btn btn-primary" href="<?= e($application['original_url']); ?>" target="_blank" rel="noopener noreferrer">Continue on employer website</a><?php endif; ?></div></div>
+<?php endif; ?>
+<?php if ($application['confirmation']): ?>
 <div class="notice">
     <?= icon('circle-check'); ?>
     <div>
-        <strong>Submission confirmation</strong>
+        <strong><?= $application['status'] === 'test_sent' ? 'Test delivery confirmation' : 'Submission confirmation'; ?></strong>
         <p><?= e($application['confirmation']); ?></p>
     </div>
 </div>
@@ -40,7 +54,7 @@
         ): ?>
                 <button
                     class="btn btn-soft btn-sm"
-                    data-action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/prepare"
+                    x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/prepare"
                     data-loading="Queuing document preparation…"
                 >
                     <?= icon('sparkles'); ?><?= $application['cv_document_id'] ? 'Regenerate with AI' : 'Prepare with AI'; ?>
@@ -49,7 +63,7 @@
             </div>
             <form
                 action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>"
-                data-async
+                x-data="asyncForm" x-cloak x-on:submit.prevent="submit($event)"
                 class="panel-body form-stack"
             >
                 <div class="form-error" hidden role="alert"></div>
@@ -81,8 +95,8 @@
     ) {
         continue;
     } ?>
-                            <option value="<?= e($document['id']); ?>" <?= (int) $application[$field] === (int) $document['id'] ? 'selected' : ''; ?>>
-                                <?= e($document['name']); ?> · v<?= e($document['version']); ?>
+                            <option value="<?= e($document['id']); ?>" <?= (int) $application[$field] === (int) $document['id'] ? 'selected' : ''; ?> <?= !empty($document['archived_at']) ? 'disabled' : ''; ?>>
+                                <?= e($document['name']); ?> · v<?= e($document['version']); ?><?= !empty($document['archived_at']) ? ' · Cold storage' : ''; ?>
                             </option>
                             <?php
 endforeach; ?>
@@ -138,7 +152,7 @@ endforeach; ?>
                     that this package meets the employer's application instructions.
                 </label>
                 <div class="form-actions">
-                    <button class="btn" type="button" data-open-dialog="upload-dialog">
+                    <button class="btn" type="button" x-on:click="$store.app.openDialog('upload-dialog')">
                         <?= icon('upload'); ?>Upload attachment
                     </button>
                     <button class="btn btn-primary" data-loading="Saving application…">
@@ -163,9 +177,12 @@ endforeach; ?>
                 <span class="badge">Version <?= e($letter['version']); ?></span>
                 <?php endif; ?>
             </div>
+            <?php if (!empty($preserveLetter)): ?>
+            <div class="panel-body"><p>Keep your design by regenerating from the DOCX template or uploading an edited document. Attach the reviewed version above.</p></div>
+            <?php else: ?>
             <form
                 action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/letter"
-                data-async
+                x-data="asyncForm" x-cloak x-on:submit.prevent="submit($event)"
                 class="panel-body form-stack"
             >
                 <div class="form-error" hidden role="alert"></div>
@@ -185,6 +202,7 @@ endforeach; ?>
                     <?= icon('file-check'); ?>Save letter version
                 </button>
             </form>
+            <?php endif; ?>
         </section>
         <?php endif; ?>
     </div>
@@ -221,7 +239,7 @@ endforeach; ?>
                 <?php endif; ?> <?php if ($transitions): ?>
                 <form
                     action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/status"
-                    data-async
+                    x-data="asyncForm" x-cloak x-on:submit.prevent="submit($event)"
                     class="form-stack"
                 >
                     <div class="form-error" hidden role="alert"></div>
@@ -255,7 +273,7 @@ endforeach; ?>
             ): ?>
                 <button
                     class="btn btn-primary"
-                    data-action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/send"
+                    x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/send"
                     data-confirm="Send this approved application to the verified employer email address?"
                     data-loading="Queuing submission…"
                 >
@@ -274,7 +292,7 @@ endforeach; ?>
 <?php if (in_array($application['status'], ['submitted', 'awaiting_external_action', 'interview'], true)): ?>
     <section class="panel mt-6">
         <div class="panel-header"><h2>Interview details</h2></div>
-        <form action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/interview" data-async class="panel-body form-stack">
+        <form action="<?= e(app_base_path()); ?>/api/applications/<?= e($application['id']); ?>/interview" x-data="asyncForm" x-cloak x-on:submit.prevent="submit($event)" class="panel-body form-stack">
             <div class="form-error" role="alert" hidden></div>
             <div class="field">
                 <label for="interview-time">Interview date & time (Africa/Nairobi)</label>

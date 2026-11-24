@@ -31,7 +31,7 @@
  ): ?>
             <button
                 class="icon-button"
-                data-action="<?= e(app_base_path()); ?>/api/notifications/<?= e($notification['id']); ?>/read"
+                x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/notifications/<?= e($notification['id']); ?>/read"
                 aria-label="Mark notification as read"
             >
                 <?= icon('check'); ?>

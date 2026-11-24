@@ -1,7 +1,7 @@
 <div class="record" data-career-record="<?= e($kind); ?>">
     <div class="record-top">
         <strong><?= $kind === 'employment' ? 'Experience' : 'Education'; ?></strong>
-        <button class="icon-button" type="button" data-remove-record aria-label="Remove this entry">
+        <button class="icon-button" type="button" x-on:click="removeRecord($el)" aria-label="Remove this entry">
             <?= icon('x'); ?>
         </button>
     </div>

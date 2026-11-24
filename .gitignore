@@ -1,4 +1,15 @@
 /.env
+/client_secret_*.json
+/jobflow-*.json
+/service-account*.json
+/credentials/
+/secrets/
+/.release/
+/.migration-upload/
+/_db-deploy/
+/.ftp-*.json
+**/__pycache__/
+*.pyc
 /vendor/
 /node_modules/
 /storage/private/*
@@ -9,6 +20,7 @@
 *.log
 
 /storage/worker-heartbeat
+/storage/application-worker-heartbeat
 /.env.*
 !/.env.example
 /.agents/

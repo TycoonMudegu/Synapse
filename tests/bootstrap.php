@@ -10,4 +10,12 @@ if (!str_ends_with($testDatabase, '_test') || !preg_match('/^[a-zA-Z0-9_]+$/', $
     throw new RuntimeException('Tests require a separate database whose name ends in _test.');
 }
 putenv('DB_DATABASE=' . $testDatabase);
+// Tests supply fixture providers explicitly; never inherit the owner's live AI key.
+putenv('GEMINI_API_KEY=');
+// Automated tests must never deliver mail through the installation's real SMTP account.
+putenv('SMTP_PASSWORD=');
+putenv('DOCUMENT_RENDERER_URL=');
+putenv('DOCUMENT_RENDERER_TOKEN=');
+// Never let ordinary fixtures upload documents to the owner's real bucket.
+putenv('DOCUMENT_STORAGE=' . (getenv('JOBFLOW_TEST_STORAGE') ?: 'local'));
 require BASE_PATH . '/Bootstrap/App.php';

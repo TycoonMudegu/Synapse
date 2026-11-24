@@ -33,7 +33,39 @@ final class SourceCatalog
             'setup_url' => 'https://www.fuzu.com/kenya/job',
             'sender_domain' => 'fuzu.com',
             'description' =>
-                'Collect public IT and software vacancies directly when the site accepts requests from this server. No Gmail or AI key is required.',
+                'Browse Fuzu job listings in Chromium and collect public IT and software vacancies. No Gmail or AI key is required.',
+        ],
+        'corporatestaffing' => [
+            'name' => 'Corporate Staffing Kenya',
+            'adapter' => 'corporatestaffing_public',
+            'url' => 'https://www.corporatestaffing.co.ke/category/it-jobs-in-kenya/',
+            'setup_url' => 'https://www.corporatestaffing.co.ke/category/it-jobs-in-kenya/',
+            'description' =>
+                'Collect public IT vacancies from Corporate Staffing. No browser, Gmail or AI key is required.',
+        ],
+        'google_jobs' => [
+            'name' => 'Google Jobs',
+            'adapter' => 'google_jobs_api',
+            'url' => 'https://serpapi.com/search.json',
+            'setup_url' => 'https://www.google.com/search?q=IT+jobs+in+Kenya&udm=8',
+            'description' =>
+                'Import Google Jobs results through SerpApi using your own API key. Configure the query and location in Job discovery settings.',
+        ],
+        'talent' => [
+            'name' => 'Talent.com Kenya',
+            'adapter' => 'talent_public',
+            'url' => 'https://ke.talent.com/jobs/k-software-developer-l-kenya',
+            'setup_url' => 'https://ke.talent.com/jobs/k-software-developer-l-kenya',
+            'description' =>
+                'Collect public software vacancies from Talent.com Kenya. No browser, Gmail or API key is required.',
+        ],
+        'indeed' => [
+            'name' => 'Indeed via Google Jobs',
+            'adapter' => 'indeed_api',
+            'url' => 'https://serpapi.com/search.json',
+            'setup_url' => 'https://www.indeed.com/jobs?q=software+developer&l=Kenya',
+            'description' =>
+                'Import vacancies with explicit Indeed job links from Google Jobs using your saved SerpApi connection. Coverage depends on Google’s index.',
         ],
     ];
 

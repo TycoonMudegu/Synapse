@@ -8,7 +8,7 @@ final class UserRepository extends Repository
 {
     public function byId(int $id): ?array
     {
-        return $this->one('SELECT id, name, email, created_at FROM users WHERE id = ?', [$id]);
+        return $this->one('SELECT id, name, email, created_at, onboarding_step, onboarded_at FROM users WHERE id = ?', [$id]);
     }
 
     public function byEmail(string $email): ?array
@@ -19,6 +19,16 @@ final class UserRepository extends Repository
     public function count(): int
     {
         return (int) $this->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    }
+
+    public function byGoogle(string $subject): ?array
+    {
+        return $this->one('SELECT * FROM users WHERE google_subject = ?', [$subject]);
+    }
+
+    public function googleSubject(int $id, string $subject): void
+    {
+        $this->query('UPDATE users SET google_subject = ? WHERE id = ?', [$subject, $id]);
     }
 
     public function create(string $name, string $email, string $password): int

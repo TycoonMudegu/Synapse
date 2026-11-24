@@ -61,7 +61,14 @@ final class SettingsService
                 'sync_minutes' => ['int', 5, 1440],
                 'alert_query' => ['text', 1000],
             ],
-            'documents' => ['default_format' => ['choice', ['pdf', 'docx']]],
+            'google_jobs' => [
+                'query' => ['text', 500],
+                'location' => ['text', 200],
+            ],
+            'documents' => [
+                'default_format' => ['choice', ['pdf', 'docx']],
+                'layout_mode' => ['choice', ['preserve', 'simple']],
+            ],
         };
         foreach ($rules as $field => $rule) {
             $value = $input[$field] ?? ($rule[0] === 'bool' ? false : $settings[$field]);
@@ -74,10 +81,43 @@ final class SettingsService
             };
         }
         if ($section === 'automation') {
+            if (
+                $settings['mode'] !== 'manual' ||
+                $settings['discovery_enabled'] ||
+                $settings['analysis_enabled'] ||
+                $settings['preparation_enabled']
+            ) {
+                (new Entitlements())->requirePaid($userId);
+            }
             if ($settings['mode'] === 'automatic' && empty($input['confirm_automatic'])) {
                 throw new HttpException('Explicitly confirm Automatic mode before enabling it.');
             }
+            if ($settings['mode'] === 'automatic') {
+                // Automatic applications need the stages that create the packages.
+                $settings['discovery_enabled'] = true;
+                $settings['analysis_enabled'] = true;
+                $settings['preparation_enabled'] = true;
+            }
             $settings['permitted_methods'] = !empty($input['allow_email']) ? ['email'] : [];
+        }
+        if ($section === 'google_jobs') {
+            if ($settings['query'] === '' || $settings['location'] === '') {
+                throw new HttpException('Supply a Google Jobs search query and location.');
+            }
+            $key = Validator::text($input['api_key'] ?? '', 'SerpApi key', 500);
+            if (!empty($input['remove_key'])) {
+                $settings['encrypted_key'] = '';
+            } elseif ($key !== '') {
+                $settings['encrypted_key'] = Crypto::encrypt($key);
+            }
+            if ($settings !== $repository->get($userId, $section)) {
+                foreach (['google_jobs', 'indeed'] as $sourceKey) {
+                    (new \App\Repositories\SourceRepository())->invalidatePreset(
+                        $userId,
+                        $sourceKey,
+                    );
+                }
+            }
         }
         if ($section === 'ai') {
             foreach (
@@ -113,6 +153,9 @@ final class SettingsService
             );
         }
         $repository->save($userId, $section, $settings);
+        if ($section === 'automation') {
+            (new AutomationService())->queueSavedJobs($userId);
+        }
         (new ActivityRepository())->log(
             $userId,
             'settings.saved',
@@ -144,6 +187,13 @@ final class SettingsService
         }
         $model = Validator::text($input['model'] ?? '', 'model identifier', 200, true);
         $key = Validator::text($input['api_key'] ?? '', 'API key', 10000);
+        if (
+            $existing &&
+            (json_decode($existing['options_json'], true)['managed'] ?? false) &&
+            $key === ''
+        ) {
+            throw new HttpException('Enter your own API key to replace Synapse AI.');
+        }
         if ($key === '' && !$existing) {
             throw new HttpException('An API key is required for a new provider.');
         }

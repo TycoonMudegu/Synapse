@@ -1,16 +1,17 @@
+<div x-data="careerProfile">
 <div class="page-heading">
     <div>
         <div class="eyebrow mb-2">YOUR EXPERIENCE IS THE STARTING POINT</div>
         <h1>My CV & career profile</h1>
         <p>A truthful picture of what you bring. The foundation of every application.</p>
     </div>
-    <div class="heading-actions">
-        <button class="btn" data-open-dialog="upload-dialog"><?= icon('upload'); ?>Upload CV</button>
-        <form action="<?= e(app_base_path()); ?>/api/profile/export" data-async>
+    <div class="heading-actions"><a class="btn" href="<?= e(app_url('/cv-review')); ?>"><?= icon('file-check'); ?>Check my CV</a>
+        <button class="btn" x-on:click="$store.app.openDialog('upload-dialog')"><?= icon('upload'); ?>Upload CV</button>
+        <form action="<?= e(app_base_path()); ?>/api/profile/export" x-data="asyncForm" x-on:submit.prevent="submit($event)">
             <input type="hidden" name="format" value="pdf" />
             <button class="btn btn-soft"><?= icon('download'); ?>Export PDF</button>
         </form>
-        <form action="<?= e(app_base_path()); ?>/api/profile/export" data-async>
+        <form action="<?= e(app_base_path()); ?>/api/profile/export" x-data="asyncForm" x-on:submit.prevent="submit($event)">
             <input type="hidden" name="format" value="docx" />
             <button class="btn btn-soft"><?= icon('download'); ?>DOCX</button>
         </form>
@@ -22,12 +23,12 @@
         <strong>Your experience, accurately represented.</strong>
         <p>
             Only verified facts should go into your profile. AI imports are drafts for your review.
-            Save changes before exporting.
+            <?= $documentLayout === 'preserve' ? 'Exports keep your master CV design and its source contents. Upload an updated DOCX for changes beyond the tailored summary. Profile changes update job matching.' : 'Save changes before exporting.'; ?>
         </p>
     </div>
 </div>
 <div class="content-grid">
-    <form action="<?= e(app_base_path()); ?>/api/profile" method="post" data-async id="profile-form" class="stack">
+    <form action="<?= e(app_base_path()); ?>/api/profile" method="post" x-data="asyncForm" x-on:submit.prevent="submit($event)" id="profile-form" class="stack">
         <div class="form-error" role="alert" hidden></div>
         <section class="panel">
             <div class="panel-header">
@@ -84,7 +85,7 @@
         <section class="panel">
             <div class="panel-header">
                 <h2><?= e($name); ?></h2>
-                <button class="btn btn-sm" type="button" data-add-record="<?= e($kind); ?>">
+                <button class="btn btn-sm" type="button" x-on:click="addRecord($el.dataset.addRecord)" data-add-record="<?= e($kind); ?>">
                     <?= icon('plus'); ?>Add entry
                 </button>
             </div>
@@ -204,20 +205,20 @@ else:
         $documents
         as $document
     ): ?>
-            <div class="job-row flex-wrap">
+            <div class="job-row flex-wrap <?= !empty($document['archived_at']) ? 'document-card-archived' : ''; ?>">
                 <div>
                     <a class="text-link break-all" href="<?= e(app_base_path()); ?>/documents/<?= e($document['id']); ?>">
                         <?= e($document['name']); ?>
                     </a>
-                    <p><?= e(short_date($document['created_at'])); ?> <?= $document[ 'is_master' ] ? '· Master CV' : ''; ?></p>
+                    <p><?= e(short_date($document['created_at'])); ?> <?= $document[ 'is_master' ] ? '· Master CV' : ''; ?><?= !empty($document['archived_at']) ? ' · Cold storage' : ''; ?></p>
                 </div>
                 <?php if (
-    $document['extracted_text']
+    empty($document['archived_at']) && $document['extracted_text']
 ): ?>
                 <button
                     class="btn btn-sm"
                     type="button"
-                    data-profile-import="<?= e($document['id']); ?>"
+                    x-on:click="importDraft($el)" data-profile-import="<?= e($document['id']); ?>"
                     data-loading="Extracting your profile…"
                 >
                     Import into profile
@@ -233,3 +234,53 @@ endif; ?>
         </div>
     </aside>
 </div>
+
+</div>
+<script nonce="<?= e(CSP_NONCE); ?>">
+document.addEventListener('alpine:init', () => {
+    Alpine.data('careerProfile', () => ({
+        recordSequence: Date.now(),
+        importing: false,
+        addRecord(kind, data = {}) {
+            const template = document.querySelector(`#template-${kind}`);
+            const list = document.querySelector(`[data-record-list="${kind}"]`);
+            if (!template || !list) return;
+            const holder = document.createElement('template');
+            // The HTML comes only from our escaped PHP template. Imported values
+            // are assigned to form controls below, never interpolated into HTML.
+            holder.innerHTML = template.innerHTML.replaceAll('__INDEX__', String(this.recordSequence++));
+            const fragment = holder.content;
+            for (const field of fragment.querySelectorAll('[data-record-field]')) {
+                field.value = data[field.dataset.recordField] ?? '';
+            }
+            list.append(fragment);
+            this.$nextTick(() => this.$store.app.icons());
+        },
+        removeRecord(button) { button.closest('[data-career-record]')?.remove(); },
+        async importDraft(button) {
+            if (this.importing) return;
+            if (!window.confirm('Extract a draft from this CV and replace the fields currently on screen? Your saved profile changes only when you save the form.')) return;
+            this.importing = true;
+            try {
+                await this.$store.app.withLoading(button, async () => {
+                    try {
+                        const result = await this.$store.app.request(this.$store.app.url(`/api/documents/${button.dataset.profileImport}/profile`), { data: {} });
+                        const form = document.querySelector('#profile-form');
+                        for (const name of ['full_name', 'email', 'phone', 'location', 'summary']) {
+                            form.elements.namedItem(name).value = result.data[name] ?? '';
+                        }
+                        form.elements.namedItem('skills').value = result.data.skills.join(', ');
+                        form.elements.namedItem('verified').checked = false;
+                        for (const kind of ['employment', 'education']) {
+                            document.querySelector(`[data-record-list="${kind}"]`).replaceChildren();
+                            for (const record of result.data[kind]) this.addRecord(kind, record);
+                        }
+                        this.$store.app.notify(`Draft imported. ${result.data.uncertainties.join(' ')} Review every field before saving.`);
+                        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } catch (error) { this.$store.app.notify(error.message, true); }
+                });
+            } finally { this.importing = false; }
+        },
+    }));
+});
+</script>

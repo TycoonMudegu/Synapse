@@ -56,6 +56,7 @@ final class Request
     public function wantsJson(): bool
     {
         return str_starts_with($this->path(), '/api/') ||
+            str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') ||
             str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
     }
 

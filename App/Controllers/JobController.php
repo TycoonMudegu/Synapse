@@ -141,7 +141,7 @@ final class JobController
         Response::json([
             'ok' => true,
             'task_id' => $task,
-            'message' => 'Analysis queued. Run the worker to process it.',
+            'message' => 'Your job match is being checked. We’ll let you know when it’s ready.',
         ]);
     }
 

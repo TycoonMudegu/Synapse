@@ -13,7 +13,12 @@ const server = externalBase
           env: {
               ...process.env,
               DB_DATABASE: process.env.JOBFLOW_TEST_DATABASE ?? 'jobflow_test',
+              DOCUMENT_STORAGE: process.env.JOBFLOW_TEST_STORAGE || 'local',
               SESSION_SECURE: 'false',
+              GEMINI_API_KEY: '',
+              SMTP_PASSWORD: '',
+              DOCUMENT_RENDERER_URL: '',
+              DOCUMENT_RENDERER_TOKEN: '',
               APP_URL: base,
           },
           stdio: 'ignore',
@@ -43,8 +48,9 @@ try {
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(base);
     await expect(page).toHaveURL(`${base}/login`);
+    await page.goto(`${base}/login`);
     pass('private pages redirect to sign-in');
-    await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your next move starts here.' })).toBeVisible();
     const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
     const noCsrf = await context.request.post(`${base}/login`, {
         data: { email: fixture.email, password: fixture.password },
@@ -57,16 +63,60 @@ try {
     });
     expect(incorrect.status()).toBe(422);
     pass('invalid credentials are rejected');
+
+    await page.getByLabel('Email address', { exact: true }).fill(fixture.email);
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByLabel('Password', { exact: true }).fill('incorrect-fixture-password');
+    let blockedPosts = 0;
+    const countLoginPosts = (request) => {
+        if (request.url() === `${base}/auth/continue` && request.method() === 'POST')
+            blockedPosts += 1;
+    };
+    page.on('request', countLoginPosts);
+    await page.route('**/api/auth/csrf', (route) =>
+        route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({ ok: false, message: 'Session service is unavailable.' }),
+        }),
+    );
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page.getByRole('alert')).toHaveText('Session service is unavailable.');
+    expect(blockedPosts).toBe(0);
+    await expect(page.getByLabel('Email address', { exact: true })).toHaveValue(fixture.email);
+    await expect(page.getByLabel('Password', { exact: true })).toHaveValue(
+        'incorrect-fixture-password',
+    );
+    page.off('request', countLoginPosts);
+    await page.unroute('**/api/auth/csrf');
+    pass('a failed session refresh preserves credentials and prevents sign-in submission');
+
+    await context.clearCookies();
+    const refresh = page.waitForResponse((response) => response.url() === `${base}/api/auth/csrf`);
+    const recoveredLogin = page.waitForResponse(
+        (response) =>
+            response.url() === `${base}/auth/continue` && response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    const refreshed = await refresh;
+    expect(refreshed.status()).toBe(200);
+    expect(refreshed.headers()['cache-control']).toContain('no-store');
+    expect((await recoveredLogin).status()).toBe(409);
+    await expect(page.getByRole('alert')).toHaveText('Start with your email again to continue.');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+    expect(await page.locator('meta[name="csrf-token"]').getAttribute('content')).not.toBe(csrf);
+    pass('an older sign-in form recovers after losing its session cookie without reloading');
+
     const beforeSession = (await context.cookies()).find(
         (cookie) => cookie.name === 'jobflow_session',
     ).value;
-    await page.getByLabel('Email address', { exact: true }).fill(fixture.email);
     await page.getByLabel('Password', { exact: true }).fill(fixture.password);
     await page.getByRole('button', { name: 'Show password' }).click();
     await expect(page.locator('#password')).toHaveAttribute('type', 'text');
     await page.getByRole('button', { name: 'Hide password' }).click();
-    await page.getByRole('button', { name: 'Sign in to your workspace' }).click();
-    await expect(page).toHaveURL(`${base}/`);
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page).toHaveURL(`${base}/`, { timeout: 15000 });
     const afterSession = (await context.cookies()).find(
         (cookie) => cookie.name === 'jobflow_session',
     ).value;
@@ -103,6 +153,7 @@ try {
     }
     pass('all application and settings pages render successfully');
     await page.goto(`${base}/settings?tab=discovery`);
+    await page.getByText('Advanced discovery settings', { exact: true }).click();
     await expect(page.getByRole('heading', { name: 'MyJobMag Kenya', exact: true })).toBeVisible();
     await expect(
         page.getByRole('heading', { name: 'BrighterMonday Kenya', exact: true }),
@@ -128,6 +179,95 @@ try {
         fuzuCard.getByRole('button', { name: 'Check public pages', exact: true }),
     ).toBeVisible();
     pass('public sources save without Gmail and optional email mode switches persist');
+
+    const corporateCard = page.locator('article').filter({
+        has: page.getByRole('heading', { name: 'Corporate Staffing Kenya', exact: true }),
+    });
+    await corporateCard.getByRole('button', { name: 'Add source', exact: true }).click();
+    await expect(corporateCard.getByText('Untested', { exact: true })).toBeVisible();
+    await expect(
+        corporateCard.getByRole('button', { name: 'Check public pages', exact: true }),
+    ).toBeVisible();
+    await expect(
+        corporateCard.getByRole('button', { name: 'Use email alerts', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+        corporateCard.getByRole('link', { name: 'Browse jobs', exact: true }),
+    ).toHaveAttribute('href', 'https://www.corporatestaffing.co.ke/category/it-jobs-in-kenya/');
+    pass('Corporate Staffing adds as public pages without Gmail or browser configuration');
+
+    const talentCard = page
+        .locator('article')
+        .filter({ has: page.getByRole('heading', { name: 'Talent.com Kenya', exact: true }) });
+    await talentCard.getByRole('button', { name: 'Add source', exact: true }).click();
+    await expect(talentCard.getByText('Untested', { exact: true })).toBeVisible();
+    await expect(
+        talentCard.getByRole('button', { name: 'Check public pages', exact: true }),
+    ).toBeVisible();
+    await expect(
+        talentCard.getByRole('button', { name: 'Use email alerts', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+        talentCard.getByRole('link', { name: 'Browse jobs', exact: true }),
+    ).toHaveAttribute('href', 'https://ke.talent.com/jobs/k-software-developer-l-kenya');
+    pass('Talent.com adds as a public Kenya source without Gmail or an API key');
+
+    const indeedCard = page.locator('article').filter({
+        has: page.getByRole('heading', { name: 'Indeed via Google Jobs', exact: true }),
+    });
+    await indeedCard.getByRole('button', { name: 'Add source', exact: true }).click();
+    await expect(indeedCard.getByRole('button', { name: 'Check API', exact: true })).toBeVisible();
+    await expect(indeedCard.getByText(/Coverage depends on Google’s index/)).toBeVisible();
+    await indeedCard.getByRole('button', { name: 'Check API', exact: true }).click();
+    await expect(
+        page.getByRole('alert').filter({ hasText: /Configure your SerpApi key/ }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(indeedCard.getByText(/Configure your SerpApi key/)).toBeVisible();
+    pass('Indeed reports its Google Jobs coverage and requires the shared API connection');
+
+    const googleCard = page
+        .locator('article')
+        .filter({ has: page.getByRole('heading', { name: 'Google Jobs', exact: true }) });
+    await googleCard.getByRole('button', { name: 'Add source', exact: true }).click();
+    await expect(googleCard.getByRole('button', { name: 'Check API', exact: true })).toBeVisible();
+    await googleCard.getByRole('button', { name: 'Check API', exact: true }).click();
+    await expect(
+        page.getByRole('alert').filter({ hasText: /Configure your SerpApi key/ }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(googleCard.getByText(/Configure your SerpApi key/)).toBeVisible();
+    const googleSettings = page.locator('#google-jobs');
+    await googleSettings
+        .getByLabel('SerpApi key', { exact: true })
+        .fill('browser-fixture-private-key');
+    await googleSettings
+        .getByLabel('Google Jobs search query', { exact: true })
+        .fill('PHP developer jobs');
+    await googleSettings
+        .getByLabel('Google Jobs search location', { exact: true })
+        .fill('Nairobi, Kenya');
+    await googleSettings
+        .getByRole('button', { name: 'Save Google Jobs settings', exact: true })
+        .click();
+    await expect(googleSettings.getByText(/An encrypted API key is saved/)).toBeVisible();
+    await expect(googleSettings.getByLabel('SerpApi key', { exact: true })).toHaveValue('');
+    expect(await page.content()).not.toContain('browser-fixture-private-key');
+    await expect(
+        googleSettings.getByLabel('Google Jobs search query', { exact: true }),
+    ).toHaveValue('PHP developer jobs');
+    await googleSettings
+        .getByLabel('Remove the saved SerpApi key and disable Google Jobs and Indeed collection')
+        .check();
+    await googleSettings
+        .getByRole('button', { name: 'Save Google Jobs settings', exact: true })
+        .click();
+    await expect(googleSettings.getByText(/No API key is configured/)).toBeVisible();
+    await expect(googleCard.getByText('Untested', { exact: true })).toBeVisible();
+    await expect(indeedCard.getByText('Untested', { exact: true })).toBeVisible();
+    pass(
+        'Google Jobs reports missing configuration, saves private settings and removes its key without external requests',
+    );
 
     await page.goto(`${base}/profile`);
     await page
@@ -263,19 +403,57 @@ try {
     expect(downloadResponse.headers()['content-type']).toContain('wordprocessingml');
     expect((await downloadResponse.body()).subarray(0, 2).toString()).toBe('PK');
     pass('real DOCX upload, extraction and authenticated download work');
+    const uploadedDocumentUrl = page.url();
+    await page.getByRole('button', { name: 'Create PDF preview', exact: true }).click();
+    await expect(page.locator('#toasts [role="alert"]')).toContainText(
+        'finish document rendering setup',
+    );
+    await expect(page).toHaveURL(uploadedDocumentUrl);
+    const unchangedDownload = await context.request.get(`${uploadedDocumentUrl}/download`);
+    expect(await unchangedDownload.body()).toEqual(await downloadResponse.body());
+    pass('DOCX preview explains missing renderer setup and keeps the original document intact');
+    await page.goto(`${base}/settings?tab=documents`);
+    await expect(page.getByLabel('Document design', { exact: true })).toHaveValue('preserve');
+    await page.getByLabel('Document design', { exact: true }).selectOption('simple');
+    await Promise.all([
+        page.waitForResponse(
+            (response) =>
+                response.url() === `${base}/api/settings` && response.request().method() === 'POST',
+        ),
+        page.getByRole('button', { name: 'Save document preferences', exact: true }).click(),
+    ]);
+    await expect(page.getByLabel('Document design', { exact: true })).toHaveValue('simple');
+    await page.reload();
+    await expect(page.getByLabel('Document design', { exact: true })).toHaveValue('simple');
+    await page.getByLabel('Document design', { exact: true }).selectOption('preserve');
+    await Promise.all([
+        page.waitForResponse(
+            (response) =>
+                response.url() === `${base}/api/settings` && response.request().method() === 'POST',
+        ),
+        page.getByRole('button', { name: 'Save document preferences', exact: true }).click(),
+    ]);
+    await page.reload();
+    await expect(page.getByLabel('Document design', { exact: true })).toHaveValue('preserve');
+    pass(
+        'uploaded design is the default and changing document layouts is an explicit saved choice',
+    );
     await page.goto(`${base}/settings?tab=automation`);
     await page.getByLabel('Submission mode', { exact: true }).selectOption('automatic');
     await page.getByRole('button', { name: 'Save automation settings' }).click();
     await expect(page.locator('main form .form-error').first()).toContainText('Explicitly confirm');
     pass('Automatic mode requires explicit consent');
     await page.getByLabel('Submission mode', { exact: true }).selectOption('manual');
-    await page.getByRole('button', { name: 'Save automation settings' }).click();
-    await expect(page.getByRole('status').filter({ hasText: 'Settings saved' })).toBeVisible();
+    await Promise.all([
+        page.waitForEvent('load'),
+        page.getByRole('button', { name: 'Save automation settings' }).click(),
+    ]);
+    await expect(page.getByLabel('Submission mode', { exact: true })).toHaveValue('manual');
     const protectedResponse = await context.request.get(`${base}/documents/999999999/download`);
     expect(protectedResponse.status()).toBe(404);
-    expect((await context.request.get(`${base}/register`)).status()).toBe(404);
+    expect((await context.request.get(`${base}/register`)).status()).toBe(200);
     expect([403, 404]).toContain((await context.request.get(`${base}/.env`)).status());
-    pass('unknown documents, public registration and private files are inaccessible');
+    pass('unknown documents and private files stay protected while registration is public');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(base);
     await page.getByRole('button', { name: 'Open navigation', exact: true }).click();

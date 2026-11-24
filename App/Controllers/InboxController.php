@@ -77,8 +77,8 @@ final class InboxController
         (new GmailService())->send(
             Auth::id(),
             $connection['account_email'],
-            'JobFlow connection test',
-            'Your JobFlow Gmail sending connection is working.',
+            'Synapse connection test',
+            'Your Synapse Gmail sending connection is working.',
         );
         Response::json([
             'ok' => true,

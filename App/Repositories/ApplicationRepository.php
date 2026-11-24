@@ -8,7 +8,7 @@ use App\Core\HttpException;
 
 final class ApplicationRepository extends Repository
 {
-    private const SELECT = 'SELECT a.*, j.title, j.employer, j.location, j.deadline, j.application_email, j.email_subject, j.original_url, j.instructions, j.verified_at AS job_verified_at, m.score, m.eligibility FROM applications a JOIN job_listings j ON j.id = a.job_id LEFT JOIN match_results m ON m.job_id = a.job_id AND m.user_id = a.user_id';
+    private const SELECT = 'SELECT a.*, j.title, j.employer, j.location, j.deadline, j.status AS job_status, j.application_email, j.email_subject, j.original_url, j.instructions, j.verified_at AS job_verified_at, m.score, m.eligibility FROM applications a JOIN job_listings j ON j.id = a.job_id LEFT JOIN match_results m ON m.job_id = a.job_id AND m.user_id = a.user_id';
 
     public function all(int $userId, array $filters = [], int $limit = 100): array
     {
@@ -23,10 +23,11 @@ final class ApplicationRepository extends Repository
             $parameters[] = '%' . $filters['q'] . '%';
             $parameters[] = '%' . $filters['q'] . '%';
         }
-        $sort =
-            ($filters['sort'] ?? '') === 'deadline'
-                ? 'j.deadline IS NULL, j.deadline, a.id DESC'
-                : 'a.updated_at DESC, a.id DESC';
+        $sort = match ($filters['sort'] ?? '') {
+            'deadline' => 'j.deadline IS NULL, j.deadline, a.id DESC',
+            'match' => 'm.score DESC, a.id',
+            default => 'a.updated_at DESC, a.id DESC',
+        };
         return $this->rows(
             self::SELECT . $where . ' ORDER BY ' . $sort . ' LIMIT ' . min(200, max(1, $limit)),
             $parameters,

@@ -12,9 +12,29 @@ use App\Controllers\InboxController;
 use App\Controllers\JobController;
 use App\Controllers\ProfileController;
 use App\Controllers\SettingsController;
+use App\Controllers\OnboardingController;
+use App\Controllers\BillingController;
 
+$router->add('GET', '/register', [AuthController::class, 'showRegister'], false);
+$router->add('POST', '/register', [AuthController::class, 'register'], false);
+$router->add('POST', '/auth/google', [AuthController::class, 'google'], false);
+$router->add('GET', '/Callback', [AuthController::class, 'googleCallback'], false);
+$router->add('GET', '/auth/google/callback', [AuthController::class, 'googleCallback'], false);
+$router->add('GET', '/onboarding', [OnboardingController::class, 'index']);
+$router->add('POST', '/api/onboarding', [OnboardingController::class, 'save']);
+$router->add('POST', '/api/onboarding/skip', [OnboardingController::class, 'skip']);
+$router->add('GET', '/plans', [BillingController::class, 'index']);
+$router->add('POST', '/api/billing/promo', [BillingController::class, 'redeem']);
+$router->add('POST', '/api/billing/mpesa', [BillingController::class, 'start']);
+$router->add('POST', '/api/billing/payments/{id}/check', [BillingController::class, 'check']);
+$router->add('POST', '/api/billing/mpesa/callback', [BillingController::class, 'callback'], false);
+$router->add('GET', '/cv-review', [OnboardingController::class, 'review']);
+$router->add('POST', '/api/cv/grade', [OnboardingController::class, 'grade']);
+$router->add('POST', '/api/cv/improve', [OnboardingController::class, 'advice']);
 $router->add('GET', '/login', [AuthController::class, 'show'], false);
 $router->add('POST', '/login', [AuthController::class, 'login'], false);
+$router->add('POST', '/auth/continue', [AuthController::class, 'advance'], false);
+$router->add('GET', '/api/auth/csrf', [AuthController::class, 'csrf'], false);
 $router->add('POST', '/logout', [AuthController::class, 'logout']);
 $router->add('GET', '/', [DashboardController::class, 'index']);
 $router->add('GET', '/discover', [JobController::class, 'index']);
@@ -44,8 +64,15 @@ $router->add('POST', '/api/jobs/{id}/assist', [JobController::class, 'assist']);
 $router->add('POST', '/api/profile', [ProfileController::class, 'save']);
 $router->add('POST', '/api/profile/export', [ProfileController::class, 'export']);
 $router->add('POST', '/api/documents', [DocumentController::class, 'upload']);
+$router->add('POST', '/api/documents/uploads', [DocumentController::class, 'beginUpload']);
+$router->add('POST', '/api/documents/uploads/complete', [
+    DocumentController::class,
+    'completeUpload',
+]);
 $router->add('POST', '/api/documents/{id}/export', [DocumentController::class, 'export']);
+$router->add('POST', '/api/documents/{id}/preview', [DocumentController::class, 'preview']);
 $router->add('POST', '/api/documents/{id}/rename', [DocumentController::class, 'rename']);
+$router->add('POST', '/api/documents/{id}/favorite', [DocumentController::class, 'favorite']);
 $router->add('POST', '/api/documents/{id}/delete', [DocumentController::class, 'delete']);
 $router->add('POST', '/api/documents/{id}/master', [DocumentController::class, 'master']);
 $router->add('POST', '/api/documents/{id}/profile', [DocumentController::class, 'extractProfile']);
@@ -59,6 +86,8 @@ $router->add('POST', '/api/applications/{id}/status', [ApplicationController::cl
 $router->add('POST', '/api/applications/{id}/send', [ApplicationController::class, 'send']);
 $router->add('POST', '/api/applications/{id}/letter', [ApplicationController::class, 'letter']);
 $router->add('POST', '/api/settings', [SettingsController::class, 'save']);
+$router->add('POST', '/api/preferences', [SettingsController::class, 'preferences']);
+$router->add('POST', '/api/ai/connect', [SettingsController::class, 'connectAi']);
 $router->add('POST', '/api/providers', [SettingsController::class, 'provider']);
 $router->add('POST', '/api/providers/{id}/test', [SettingsController::class, 'testProvider']);
 $router->add('POST', '/api/sources/presets', [SettingsController::class, 'sourcePresets']);

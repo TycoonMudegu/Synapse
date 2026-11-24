@@ -25,7 +25,7 @@ final class QueueRepository extends Repository
                 $type,
                 json_encode($payload, JSON_THROW_ON_ERROR),
                 $dedup,
-                $type === 'submit_application' ? 1 : 3,
+                in_array($type, ['submit_application', 'manual_job_alert'], true) ? 1 : 3,
             ],
         );
         return (int) $this->db->lastInsertId();
@@ -85,14 +85,17 @@ final class QueueRepository extends Repository
     {
         // SMTP/API sends cannot safely be replayed after an ambiguous crash. Require reconciliation.
         $this->query(
+            "UPDATE manual_job_alerts n JOIN background_tasks t ON t.user_id = n.user_id AND CAST(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json, '$.alert_id')) AS UNSIGNED) = n.id SET n.status = 'failed', n.last_error = 'Worker interrupted during email delivery. Check the sender mailbox before retrying.' WHERE t.type = 'manual_job_alert' AND t.status = 'running' AND t.reserved_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND n.status = 'sending'",
+        );
+        $this->query(
             "UPDATE applications a JOIN background_tasks t ON t.user_id = a.user_id AND CAST(JSON_UNQUOTE(JSON_EXTRACT(t.payload_json, '$.application_id')) AS UNSIGNED) = a.id SET a.status = 'awaiting_external_action', a.last_error = 'Worker interrupted during submission. Check Gmail Sent before taking further action.' WHERE t.type = 'submit_application' AND t.status = 'running' AND t.reserved_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND a.status = 'submitting'",
         );
         $failed = $this->query(
-            "UPDATE background_tasks SET status = 'failed', dedup_key = NULL, last_error = 'Worker lease expired. Review the application before retrying.' WHERE status = 'running' AND reserved_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND (type = 'submit_application' OR attempts >= max_attempts)",
+            "UPDATE background_tasks SET status = 'failed', dedup_key = NULL, last_error = 'Worker lease expired. Review delivery before retrying.' WHERE status = 'running' AND reserved_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND (type IN ('submit_application', 'manual_job_alert') OR attempts >= max_attempts)",
         )->rowCount();
         return $failed +
             $this->query(
-                "UPDATE background_tasks SET status = 'pending', reservation_token = NULL, available_at = NOW() WHERE status = 'running' AND reserved_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND type <> 'submit_application' AND attempts < max_attempts",
+                "UPDATE background_tasks SET status = 'pending', reservation_token = NULL, available_at = NOW() WHERE status = 'running' AND reserved_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE) AND type NOT IN ('submit_application', 'manual_job_alert') AND attempts < max_attempts",
             )->rowCount();
     }
 

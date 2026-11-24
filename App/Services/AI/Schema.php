@@ -31,6 +31,11 @@ final class Schema
     public static function forTask(string $task): array
     {
         return match ($task) {
+            'cv_advice' => self::object([
+                'summary' => self::string(5000),
+                'suggestions' => self::strings(),
+                'uncertainties' => self::strings(),
+            ]),
             'test' => self::object(['status' => ['type' => 'string', 'enum' => ['connected']]]),
             'extract_job', 'poster' => self::object([
                 'title' => self::string(250),
@@ -110,6 +115,19 @@ final class Schema
             ]),
             'letter' => self::object([
                 'content' => self::string(12000),
+                'uncertainties' => self::strings(),
+            ]),
+            'letter_edits' => self::object([
+                'edits' => [
+                    'type' => 'array',
+                    'maxItems' => 100,
+                    'items' => self::object([
+                        'part' => self::string(80),
+                        'index' => ['type' => 'integer', 'minimum' => 0],
+                        'original' => self::string(12000),
+                        'text' => self::string(12000),
+                    ]),
+                ],
                 'uncertainties' => self::strings(),
             ]),
             'profile' => self::object([

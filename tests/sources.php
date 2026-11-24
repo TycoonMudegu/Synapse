@@ -21,6 +21,9 @@ use App\Services\Discovery\KeywordMatcher;
 use App\Services\Discovery\TechnologyRoles;
 use App\Services\Discovery\MyJobMagAdapter;
 use App\Services\Discovery\PublicContent;
+use App\Services\Discovery\FuzuBrowserClient;
+use App\Services\Discovery\GoogleJobsAdapter;
+use App\Services\Discovery\TalentJobParser;
 use App\Services\Discovery\PublicJobParser;
 use App\Services\Discovery\PublicJobsAdapter;
 use App\Services\Discovery\SourceCatalog;
@@ -28,6 +31,7 @@ use App\Services\Discovery\SourceAdapter;
 use App\Services\Discovery\SourcePresetService;
 use App\Services\Mail\GmailService;
 use App\Services\Security\Crypto;
+use App\Services\SettingsService;
 
 $passed = 0;
 $failed = 0;
@@ -110,6 +114,48 @@ source_check(
     },
 );
 source_check(
+    'explicit application deadlines take precedence over later listing metadata and advertised email is retained',
+    function () use ($publicGraph, $publicUrl): void {
+        $graph = $publicGraph;
+        $graph['@graph'][1]['description'] =
+            '<p>Submit your CV to hiring@example.test on or before 15th November 2026.</p>';
+        $html = '<script type="application/ld+json">' . json_encode($graph) . '</script>';
+        $job = (new PublicJobParser())->job($html, $publicUrl);
+        source_same('2026-11-15', $job['deadline']);
+        source_same('email', $job['application_method']);
+        source_same('hiring@example.test', $job['application_email']);
+    },
+);
+source_check(
+    'company contact emails and ambiguous application recipients are never guessed as a sending destination',
+    function () use ($publicGraph, $publicUrl): void {
+        foreach (
+            [
+                'Company enquiries: help@example.test. Apply on our website.',
+                'Send your CV to first@example.test or email your CV to second@example.test.',
+            ]
+            as $description
+        ) {
+            $graph = $publicGraph;
+            $graph['@graph'][1]['description'] = $description;
+            $html = '<script type="application/ld+json">' . json_encode($graph) . '</script>';
+            $job = (new PublicJobParser())->job($html, $publicUrl);
+            source_same('external', $job['application_method']);
+            source_same(null, $job['application_email']);
+        }
+    },
+);
+source_check(
+    'public parser rejects impossible textual dates rather than normalising them into a different month',
+    function () use ($publicGraph, $publicUrl): void {
+        $graph = $publicGraph;
+        $graph['@graph'][1]['description'] =
+            'Closing date: 31 February 2026. Apply on our website.';
+        $html = '<script type="application/ld+json">' . json_encode($graph) . '</script>';
+        source_same('2099-12-31', (new PublicJobParser())->job($html, $publicUrl)['deadline']);
+    },
+);
+source_check(
     'public links stay on the source host and exclude login, foreign and query endpoints',
     function (): void {
         $links = (new PublicJobParser())->links(
@@ -168,6 +214,7 @@ source_check(
 $publicHttp = new class ($publicHtml) extends HttpClient {
     public array $requests = [];
     public array $pages = [];
+    public array $statuses = [];
     public int $pageStatus = 200;
     public string $robots = 'User-agent: *';
     public function __construct(public string $html) {}
@@ -189,13 +236,11 @@ $publicHttp = new class ($publicHtml) extends HttpClient {
             $links .= '<a href="/listings/fixture-' . $i . '">Fixture</a>';
         }
         return [
-            'status' => $robots ? 200 : $this->pageStatus,
+            'status' => $robots ? 200 : $this->statuses[$url] ?? $this->pageStatus,
             'headers' => [],
             'body' => $robots
                 ? $this->robots
-                : ($category
-                    ? $links
-                    : $this->pages[$url] ?? $this->html),
+                : $this->pages[$url] ?? ($category ? $links : $this->html),
         ];
     }
 };
@@ -216,6 +261,127 @@ source_check(
                 array_filter($publicHttp->requests, fn($url) => str_ends_with($url, '/robots.txt')),
             ),
         );
+    },
+);
+source_check('public collection continues past isolated vacancy server errors', function () use (
+    $publicHttp,
+): void {
+    $publicHttp->requests = [];
+    $publicHttp->statuses = [
+        'https://www.brightermonday.co.ke/listings/fixture-0' => 500,
+        'https://www.brightermonday.co.ke/listings/fixture-1' => 502,
+    ];
+    try {
+        $items = (new PublicJobsAdapter(
+            'brightermonday',
+            new PublicContent($publicHttp),
+            0,
+        ))->collect(SourceCatalog::get('brightermonday'), 2);
+        source_same(2, count($items));
+        source_same(
+            'https://www.brightermonday.co.ke/listings/fixture-2',
+            $items[0]['structured']['original_url'],
+        );
+        source_same(6, count($publicHttp->requests));
+    } finally {
+        $publicHttp->statuses = [];
+    }
+});
+source_check('public collection stops after three consecutive server errors', function () use (
+    $publicHttp,
+): void {
+    $publicHttp->requests = [];
+    $publicHttp->statuses = [
+        'https://www.brightermonday.co.ke/listings/fixture-0' => 500,
+        'https://www.brightermonday.co.ke/listings/fixture-1' => 503,
+        'https://www.brightermonday.co.ke/listings/fixture-2' => 504,
+    ];
+    try {
+        try {
+            (new PublicJobsAdapter('brightermonday', new PublicContent($publicHttp), 0))->collect(
+                SourceCatalog::get('brightermonday'),
+                1,
+            );
+            throw new RuntimeException('Expected a source server error.');
+        } catch (HttpException $exception) {
+            source_same(true, str_contains($exception->getMessage(), 'HTTP 504'));
+        }
+        source_same(5, count($publicHttp->requests));
+    } finally {
+        $publicHttp->statuses = [];
+    }
+});
+source_check(
+    'public collection retains complete vacancies before a server outage',
+    function () use ($publicHttp): void {
+        $publicHttp->requests = [];
+        $publicHttp->statuses = [
+            'https://www.brightermonday.co.ke/listings/fixture-1' => 500,
+            'https://www.brightermonday.co.ke/listings/fixture-2' => 502,
+            'https://www.brightermonday.co.ke/listings/fixture-3' => 503,
+        ];
+        try {
+            $items = (new PublicJobsAdapter(
+                'brightermonday',
+                new PublicContent($publicHttp),
+                0,
+            ))->collect(SourceCatalog::get('brightermonday'), 20);
+            source_same(1, count($items));
+            source_same(6, count($publicHttp->requests));
+        } finally {
+            $publicHttp->statuses = [];
+        }
+    },
+);
+source_check(
+    'Fuzu opens job search before its technical category and reuses robots validation',
+    function () use ($publicHttp): void {
+        $definition = SourceCatalog::get('fuzu');
+        $publicHttp->requests = [];
+        $publicHttp->pages[$definition['setup_url']] =
+            '<a href="/kenya/job/computers-software-development">IT jobs</a>';
+        $publicHttp->pages[$definition['url']] = '<a href="/kenya/jobs/fixture-role">Fixture</a>';
+        try {
+            $items = (new PublicJobsAdapter('fuzu', new PublicContent($publicHttp), 0))->collect(
+                $definition,
+                1,
+            );
+            source_same(1, count($items));
+            source_same(
+                'https://www.fuzu.com/kenya/jobs/fixture-role',
+                $items[0]['structured']['original_url'],
+            );
+            source_same(
+                [
+                    'https://www.fuzu.com/robots.txt',
+                    $definition['setup_url'],
+                    $definition['url'],
+                    'https://www.fuzu.com/kenya/jobs/fixture-role',
+                ],
+                $publicHttp->requests,
+            );
+        } finally {
+            $publicHttp->pages = [];
+        }
+    },
+);
+source_check(
+    'Fuzu browser transport rejects arbitrary destinations before starting Node',
+    function (): void {
+        $browser = new FuzuBrowserClient();
+        foreach (
+            [
+                'https://www.fuzu.com.attacker.test/kenya/job',
+                'https://user@www.fuzu.com/kenya/job',
+                'https://www.fuzu.com/login',
+                'https://www.fuzu.com/kenya/job?q=developer',
+                'https://127.0.0.1/kenya/job',
+            ]
+            as $url
+        ) {
+            source_rejects(fn() => $browser->request('GET', $url));
+        }
+        source_rejects(fn() => $browser->request('POST', SourceCatalog::get('fuzu')['url']));
     },
 );
 source_check(
@@ -249,6 +415,298 @@ source_check('robots query restrictions are enforced before requesting a page', 
     source_same(1, count($publicHttp->requests));
     $publicHttp->robots = 'User-agent: *';
 });
+
+source_check(
+    'Corporate Staffing preserves canonical trailing slashes and caps detail requests',
+    function () use ($publicHtml): void {
+        $definition = SourceCatalog::get('corporatestaffing');
+        $http = new class ($publicHtml) extends HttpClient {
+            public array $requests = [];
+            public function __construct(private string $detail) {}
+            public function request(
+                string $method,
+                string $url,
+                array $headers = [],
+                ?string $body = null,
+                int $timeout = 45,
+                int $maxBytes = 4194304,
+            ): array {
+                $this->requests[] = $url;
+                $links = '';
+                for ($i = 0; $i < 30; $i++) {
+                    $links .= '<a href="/job/fixture-' . $i . '/?utm_source=fixture">Job</a>';
+                }
+                $links .=
+                    '<a href="https://www.corporatestaffing.co.ke.attacker.test/job/foreign/">Foreign</a><a href="/category/it-jobs-in-kenya/page/2/">Category</a>';
+                return [
+                    'status' => 200,
+                    'headers' => [],
+                    'body' => str_ends_with($url, '/robots.txt')
+                        ? 'User-agent: *'
+                        : (str_contains($url, '/category/')
+                            ? $links
+                            : $this->detail),
+                ];
+            }
+        };
+        $items = (new PublicJobsAdapter('corporatestaffing', new PublicContent($http), 0))->collect(
+            $definition,
+            200,
+        );
+        source_same(20, count($items));
+        source_same(22, count($http->requests));
+        source_same(
+            'https://www.corporatestaffing.co.ke/job/fixture-0/',
+            $items[0]['structured']['original_url'],
+        );
+        source_same('https://www.corporatestaffing.co.ke/job/fixture-19/', $http->requests[21]);
+        source_rejects(fn() => SourceCatalog::get('corporatestaffing', 'email'));
+    },
+);
+source_check(
+    'Google Jobs uses the API source while retaining Google search robots restrictions',
+    function (): void {
+        source_same(
+            false,
+            (new PublicContent())->allowed(
+                "User-agent: *\nDisallow: /search",
+                '/search?q=IT+jobs+Kenya&udm=8',
+            ),
+        );
+        source_same('https://serpapi.com/search.json', SourceCatalog::get('google_jobs')['url']);
+        source_same(
+            true,
+            (new DiscoveryService())->adapter('google_jobs_api') instanceof GoogleJobsAdapter,
+        );
+        source_rejects(fn() => (new DiscoveryService())->adapter('google_jobs_public'));
+    },
+);
+$googleFixture = [
+    'title' => 'PHP Developer',
+    'company_name' => 'Google Jobs test fixture',
+    'location' => 'Nairobi, Kenya',
+    'description' => '<p>Fixture PHP duties.</p><script>unsafe()</script>',
+    'apply_options' => [['link' => 'https://employer.example.test/jobs/php?utm_source=google']],
+    'detected_extensions' => [
+        'schedule_type' => 'Full-time',
+        'work_from_home' => true,
+        'posted_at' => '2 days ago',
+    ],
+];
+source_check(
+    'Google Jobs preserves explicit facts and leaves inferred dates and salary unknown',
+    function () use ($googleFixture): void {
+        $items = (new GoogleJobsAdapter())->parse([$googleFixture, ['title' => 'Incomplete']]);
+        source_same(1, count($items));
+        $job = $items[0]['structured'];
+        source_same('PHP Developer', $job['title']);
+        source_same('Google Jobs test fixture', $job['employer']);
+        source_same('Fixture PHP duties.', $job['description']);
+        source_same('Nairobi, Kenya', $job['location']);
+        source_same('full_time', $job['employment_type']);
+        source_same('remote', $job['workplace']);
+        source_same(null, $job['deadline']);
+        source_same(false, isset($job['salary_min']));
+        source_same('https://employer.example.test/jobs/php', $job['original_url']);
+    },
+);
+source_check(
+    'Google Jobs excludes unsafe links and generic search links without fetching application sites',
+    function () use ($googleFixture): void {
+        foreach (
+            [
+                'javascript:alert(1)',
+                'https://user@public.example.test/jobs/php',
+                'https://127.0.0.1/jobs/php',
+                'https://127.1/jobs/php',
+                'https://[::ffff:127.0.0.1]/jobs/php',
+                'https://www.google.com/search?q=IT+jobs',
+                'https://employer.example.test:8443/jobs/php',
+            ]
+            as $unsafe
+        ) {
+            $job = $googleFixture;
+            $job['apply_options'] = [['link' => $unsafe]];
+            source_same([], (new GoogleJobsAdapter())->parse([$job]));
+        }
+        $job = $googleFixture;
+        $job['source_link'] = 'https://127.0.0.1/private';
+        $job['apply_options'] = [['link' => 'https://www.linkedin.com/jobs/view/fixture']];
+        $http = new class extends HttpClient {
+            public function request(
+                string $method,
+                string $url,
+                array $headers = [],
+                ?string $body = null,
+                int $timeout = 45,
+                int $maxBytes = 4194304,
+            ): array {
+                throw new RuntimeException(
+                    'Parsing Google results must never fetch an application site.',
+                );
+            }
+        };
+        source_same(
+            'https://www.linkedin.com/jobs/view/fixture',
+            (new GoogleJobsAdapter($http))->parse([$job])[0]['structured']['original_url'],
+        );
+        $job['apply_options'] = [];
+        $job['share_link'] = 'https://www.google.com/search?q=IT+jobs&htidocid=fixture-job-id';
+        source_same(
+            'https://www.google.com/search?htidocid=fixture-job-id&q=IT+jobs',
+            (new GoogleJobsAdapter())->parse([$job])[0]['structured']['original_url'],
+        );
+    },
+);
+
+$talentFixture =
+    '<link rel="canonical" href="https://ke.talent.com/view?id=1">' .
+    '<main><article><header><div data-hook="job-card-container"><h1>PHP Developer</h1>' .
+    '<div class="styles_companyLocationRow__fixture"><span>Talent test employer</span><span>&nbsp;•&nbsp;</span><span>Nairobi, KE</span></div>' .
+    '<span>30+ days ago</span><a href="/redirect?id=1">Quick Apply</a></div></header>' .
+    '<div class="styles_jobInfoContent__fixture"><p>Fixture PHP duties.</p><script>unsafe()</script></div></article>' .
+    '<aside><article><h2>Unrelated vacancy</h2><span>Unrelated employer</span><div class="styles_jobInfoContent__fixture">Unrelated description</div></article></aside></main>';
+source_check(
+    'Talent extracts only the primary advertised vacancy and leaves absent facts unknown',
+    function () use ($talentFixture): void {
+        $job = (new TalentJobParser())->job($talentFixture, 'https://ke.talent.com/view?id=1');
+        source_same('PHP Developer', $job['title']);
+        source_same('Talent test employer', $job['employer']);
+        source_same('Fixture PHP duties.', $job['description']);
+        source_same('Nairobi, KE', $job['location']);
+        source_same('not_specified', $job['employment_type']);
+        source_same('not_specified', $job['workplace']);
+        source_same(null, $job['deadline']);
+        source_same(false, isset($job['salary_min']));
+        source_same('https://ke.talent.com/view?id=1', $job['original_url']);
+    },
+);
+source_check('Talent rejects incomplete, ambiguous and mismatched vacancy pages', function () use (
+    $talentFixture,
+): void {
+    $parser = new TalentJobParser();
+    foreach (
+        [
+            str_replace('Talent test employer', '', $talentFixture),
+            str_replace('Fixture PHP duties.', '', $talentFixture),
+            str_replace('<h1>PHP Developer</h1>', '', $talentFixture),
+            str_replace(
+                '</main>',
+                '<article><h1>Another primary vacancy</h1></article></main>',
+                $talentFixture,
+            ),
+            str_repeat('x', 4194305),
+        ]
+        as $html
+    ) {
+        source_rejects(fn() => $parser->job($html, 'https://ke.talent.com/view?id=1'));
+    }
+    source_rejects(fn() => $parser->job($talentFixture, 'https://ke.talent.com/view?id=2'));
+});
+source_check(
+    'Talent links retain only numeric Kenya vacancy IDs and exclude redirect, API and foreign URLs',
+    function (): void {
+        $html =
+            '<a href="/view?id=123&utm_source=fixture">Job</a><a href="https://ke.talent.com/view?id=123">Duplicate</a>' .
+            '<a href="/redirect?id=124">Redirect</a><a href="/api/jobs?id=124">API</a><a href="/view?id[]=124">Array</a>' .
+            '<a href="/view?id=124&url=https://127.0.0.1">Forward</a><a href="https://www.talent.com/view?id=124">US</a>' .
+            '<a href="https://ke.talent.com.attacker.test/view?id=124">Spoof</a><a href="https://user@ke.talent.com/view?id=124">Credentials</a>' .
+            '<a href="https://ke.talent.com:8443/view?id=124">Port</a><a href="/view?id=not-a-number">Non-numeric</a>';
+        source_same(['https://ke.talent.com/view?id=123'], (new TalentJobParser())->links($html));
+        source_same(
+            true,
+            (new PublicContent())->allowed(
+                "User-agent: *\nDisallow: /redirect*\nDisallow: /api/",
+                '/view?id=123',
+            ),
+        );
+        source_same(
+            false,
+            (new PublicContent())->allowed(
+                "User-agent: *\nDisallow: /redirect*\nDisallow: /api/",
+                '/redirect?id=123',
+            ),
+        );
+    },
+);
+source_check('Talent collection reuses robots and respects the 20-detail cap', function () use (
+    $talentFixture,
+): void {
+    $http = new class ($talentFixture) extends HttpClient {
+        public array $requests = [];
+        public function __construct(private string $detail) {}
+        public function request(
+            string $method,
+            string $url,
+            array $headers = [],
+            ?string $body = null,
+            int $timeout = 45,
+            int $maxBytes = 4194304,
+        ): array {
+            $this->requests[] = $url;
+            $links = '';
+            for ($i = 1; $i <= 30; $i++) {
+                $links .= '<a href="/view?id=' . $i . '">Fixture</a>';
+            }
+            parse_str(parse_url($url, PHP_URL_QUERY) ?? '', $query);
+            return [
+                'status' => 200,
+                'headers' => [],
+                'body' => str_ends_with($url, '/robots.txt')
+                    ? "User-agent: *\nDisallow: /redirect*\nDisallow: /api/"
+                    : (str_contains($url, '/jobs/')
+                        ? $links
+                        : str_replace(
+                            'view?id=1"',
+                            'view?id=' . ($query['id'] ?? '') . '"',
+                            $this->detail,
+                        )),
+            ];
+        }
+    };
+    source_same(
+        20,
+        count(
+            (new PublicJobsAdapter('talent', new PublicContent($http), 0))->collect(
+                SourceCatalog::get('talent'),
+                200,
+            ),
+        ),
+    );
+    source_same(22, count($http->requests));
+    source_same('https://ke.talent.com/view?id=20', $http->requests[21]);
+});
+source_check(
+    'Indeed imports only explicit Indeed vacancy links rather than provider labels',
+    function () use ($googleFixture): void {
+        $parser = new GoogleJobsAdapter(sourceKey: 'indeed');
+        source_same('indeed_api', $parser->identifier());
+        $job = $googleFixture;
+        $job['via'] = 'Indeed';
+        source_same([], $parser->parse([$job]));
+        foreach (
+            [
+                'https://www.indeed.com.attacker.test/viewjob?jk=0123456789abcdef',
+                'https://www.indeed.com/jobs?q=PHP',
+                'https://www.indeed.com/viewjob?jk[]=0123456789abcdef',
+                'https://www.indeed.com/viewjob?jk=not-a-job-id',
+                'https://user@www.indeed.com/viewjob?jk=0123456789abcdef',
+            ]
+            as $url
+        ) {
+            $job['source_link'] = $url;
+            source_same([], $parser->parse([$job]));
+        }
+        $job['source_link'] = 'https://employer.example.test/jobs/php';
+        $job['apply_options'][] = [
+            'link' => 'https://za.indeed.com/viewjob?jk=0123456789ABCDEF&from=google',
+        ];
+        source_same(
+            'https://za.indeed.com/viewjob?jk=0123456789abcdef',
+            $parser->parse([$job])[0]['structured']['original_url'],
+        );
+    },
+);
 
 $xml = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -909,6 +1367,262 @@ try {
             $reset();
             source_same(0, $service->run($publicUserId));
             source_same(2, count((new JobRepository())->list($publicUserId)));
+        },
+    );
+    $apiUserId = $users->create(
+        'Google API Fixture',
+        'api-' . bin2hex(random_bytes(8)) . '@example.test',
+        'fixture-password-12345',
+    );
+    $userIds[] = $apiUserId;
+    $apiIds = $service->install($apiUserId);
+    $apiSource = (new SourceRepository())->get($apiUserId, $apiIds['google_jobs']);
+    $apiHttp = new class extends HttpClient {
+        public array $requests = [];
+        public array $responses = [];
+        public function request(
+            string $method,
+            string $url,
+            array $headers = [],
+            ?string $body = null,
+            int $timeout = 45,
+            int $maxBytes = 4194304,
+        ): array {
+            $this->requests[] = $url;
+            return [
+                'status' => 200,
+                'headers' => [],
+                'body' => json_encode(array_shift($this->responses) ?? ['jobs_results' => []]),
+            ];
+        }
+    };
+    source_check(
+        'all seven presets install idempotently with public/API modes and no Gmail requirement',
+        function () use ($service, $apiUserId, $apiIds): void {
+            source_same(7, count($apiIds));
+            source_same($apiIds, $service->install($apiUserId));
+            $sources = new SourceRepository();
+            source_same(
+                'corporatestaffing_public',
+                $sources->get($apiUserId, $apiIds['corporatestaffing'])['adapter'],
+            );
+            source_same(
+                'google_jobs_api',
+                $sources->get($apiUserId, $apiIds['google_jobs'])['adapter'],
+            );
+            source_same('untested', $sources->get($apiUserId, $apiIds['google_jobs'])['health']);
+            source_same('talent_public', $sources->get($apiUserId, $apiIds['talent'])['adapter']);
+            source_same('indeed_api', $sources->get($apiUserId, $apiIds['indeed'])['adapter']);
+            source_same([], $sources->enabled($apiUserId, 20));
+            source_same(
+                false,
+                (new SettingsRepository())->get($apiUserId, 'gmail')['monitor_enabled'],
+            );
+            source_rejects(
+                fn() => $service->selectMode($apiUserId, $apiIds['corporatestaffing'], 'email'),
+            );
+        },
+    );
+    source_check(
+        'Google Jobs without a key stays inactive without making an API request',
+        function () use ($apiHttp, $apiSource): void {
+            source_rejects(fn() => (new GoogleJobsAdapter($apiHttp))->validate($apiSource));
+            source_same([], $apiHttp->requests);
+        },
+    );
+    source_check(
+        'Google Jobs credentials are encrypted, preserved when blank and isolated per account',
+        function () use ($apiUserId, $otherId): void {
+            (new SettingsService())->save($apiUserId, 'google_jobs', [
+                'api_key' => 'fixture-private-key',
+                'query' => 'PHP developer jobs',
+                'location' => 'Nairobi, Kenya',
+            ]);
+            $settings = (new SettingsRepository())->get($apiUserId, 'google_jobs');
+            source_same(false, str_contains(json_encode($settings), 'fixture-private-key'));
+            source_same('fixture-private-key', Crypto::decrypt($settings['encrypted_key']));
+            (new SettingsService())->save($apiUserId, 'google_jobs', ['api_key' => '']);
+            source_same($settings, (new SettingsRepository())->get($apiUserId, 'google_jobs'));
+            source_same(
+                '',
+                (new SettingsRepository())->get($otherId, 'google_jobs')['encrypted_key'],
+            );
+            source_rejects(
+                fn() => (new SettingsService())->save($apiUserId, 'google_jobs', ['query' => '']),
+            );
+        },
+    );
+    source_check(
+        'Google Jobs caps pagination at two fixed-host API requests and deduplicates result URLs',
+        function () use ($apiHttp, $apiSource, $googleFixture): void {
+            $second = $googleFixture;
+            $second['title'] = 'Frontend Developer';
+            $second['apply_options'] = [['link' => 'https://employer.example.test/jobs/frontend']];
+            $apiHttp->responses = [
+                [
+                    'jobs_results' => [$googleFixture],
+                    'serpapi_pagination' => [
+                        'next_page_token' => 'fixture-token',
+                        'next' => 'https://attacker.example.test/steal-key',
+                    ],
+                ],
+                [
+                    'jobs_results' => [$googleFixture, $second],
+                    'serpapi_pagination' => ['next_page_token' => 'another-token'],
+                ],
+            ];
+            $items = (new GoogleJobsAdapter($apiHttp))->collect($apiSource, 200);
+            source_same(2, count($items));
+            source_same(2, count($apiHttp->requests));
+            foreach ($apiHttp->requests as $url) {
+                source_same('serpapi.com', parse_url($url, PHP_URL_HOST));
+            }
+            parse_str(parse_url($apiHttp->requests[1], PHP_URL_QUERY), $parameters);
+            source_same('fixture-token', $parameters['next_page_token']);
+            source_same('PHP developer jobs', $parameters['q']);
+            source_same('Nairobi, Kenya', $parameters['location']);
+        },
+    );
+    source_check(
+        'Google Jobs rejects malformed results and hides provider errors that echo secrets',
+        function () use ($apiHttp, $apiSource): void {
+            $adapter = new GoogleJobsAdapter($apiHttp);
+            $apiHttp->responses = [['error' => 'Bad fixture-private-key', 'jobs_results' => []]];
+            try {
+                $adapter->collect($apiSource, 20);
+                throw new RuntimeException('Expected provider failure.');
+            } catch (HttpException $error) {
+                source_same(false, str_contains($error->getMessage(), 'fixture-private-key'));
+            }
+            $apiHttp->responses = [['jobs_results' => 'malformed']];
+            source_rejects(fn() => $adapter->collect($apiSource, 20));
+            $apiHttp->responses = [['jobs_results' => []]];
+            source_rejects(fn() => $adapter->validate($apiSource));
+        },
+    );
+    source_check(
+        'Google Jobs discovery applies saved filters and existing URL deduplication',
+        function () use ($apiUserId, $apiIds, $apiHttp, $googleFixture): void {
+            $settings = new SettingsRepository();
+            $settings->save($apiUserId, 'discovery', [
+                ...$settings->get($apiUserId, 'discovery'),
+                'role_focus' => 'technology',
+            ]);
+            (new \App\Services\JobService())->create(
+                $apiUserId,
+                (new GoogleJobsAdapter())->parse([$googleFixture])[0]['structured'],
+            );
+            $second = $googleFixture;
+            $second['title'] = 'Frontend Developer';
+            $second['apply_options'] = [['link' => 'https://employer.example.test/jobs/frontend']];
+            $unrelated = $googleFixture;
+            $unrelated['title'] = 'Accountant';
+            $unrelated['description'] = 'Fixture accounting and financial reporting duties.';
+            $unrelated['apply_options'] = [
+                ['link' => 'https://employer.example.test/jobs/accountant'],
+            ];
+            $repository = new SourceRepository();
+            $repository->health($apiUserId, $apiIds['google_jobs'], true);
+            $reset = fn() => Database::connection()
+                ->prepare('UPDATE job_sources SET last_checked_at = NULL WHERE user_id = ?')
+                ->execute([$apiUserId]);
+            $reset();
+            $apiHttp->responses = [['jobs_results' => [$googleFixture, $second, $unrelated]]];
+            $service = new DiscoveryService(['google_jobs_api' => new GoogleJobsAdapter($apiHttp)]);
+            source_same(1, $service->run($apiUserId));
+            source_same(2, count((new JobRepository())->list($apiUserId)));
+            $reset();
+            $apiHttp->responses = [['jobs_results' => [$googleFixture, $second, $unrelated]]];
+            source_same(0, $service->run($apiUserId));
+        },
+    );
+    source_check(
+        'Indeed reuses the encrypted Google connection and validation spends at most one request',
+        function () use ($apiUserId, $apiIds, $apiHttp, $googleFixture): void {
+            $source = (new SourceRepository())->get($apiUserId, $apiIds['indeed']);
+            $adapter = new GoogleJobsAdapter($apiHttp, 'indeed');
+            $apiHttp->requests = [];
+            $apiHttp->responses = [
+                [
+                    'jobs_results' => [$googleFixture],
+                    'serpapi_pagination' => ['next_page_token' => 'fixture-next'],
+                ],
+            ];
+            source_rejects(fn() => $adapter->validate($source));
+            source_same(1, count($apiHttp->requests));
+            parse_str(parse_url($apiHttp->requests[0], PHP_URL_QUERY), $parameters);
+            source_same('fixture-private-key', $parameters['api_key']);
+            source_same('google_jobs', $parameters['engine']);
+            $indeed = $googleFixture;
+            $indeed['apply_options'] = [
+                ['link' => 'https://www.indeed.com/viewjob?jk=0123456789abcdef'],
+            ];
+            $apiHttp->responses = [['jobs_results' => [$googleFixture, $indeed]]];
+            source_same(
+                'https://www.indeed.com/viewjob?jk=0123456789abcdef',
+                $adapter->collect($source, 20)[0]['structured']['original_url'],
+            );
+        },
+    );
+    source_check(
+        'Indeed discovery filters before saving and deduplicates Google Jobs vacancies',
+        function () use ($apiUserId, $apiIds, $apiHttp, $googleFixture): void {
+            $repository = new SourceRepository();
+            $repository->toggle($apiUserId, $apiIds['google_jobs'], false);
+            $repository->health($apiUserId, $apiIds['indeed'], true);
+            Database::connection()
+                ->prepare('UPDATE job_sources SET last_checked_at = NULL WHERE user_id = ?')
+                ->execute([$apiUserId]);
+            $duplicate = $googleFixture;
+            $duplicate['apply_options'] = [
+                ['link' => 'https://www.indeed.com/viewjob?jk=0123456789abcdef'],
+            ];
+            $fresh = $duplicate;
+            $fresh['title'] = 'Backend Engineer';
+            $fresh['apply_options'] = [
+                ['link' => 'https://www.indeed.com/viewjob?jk=fedcba9876543210'],
+            ];
+            $apiHttp->responses = [['jobs_results' => [$googleFixture, $duplicate, $fresh]]];
+            source_same(
+                1,
+                (new DiscoveryService([
+                    'indeed_api' => new GoogleJobsAdapter($apiHttp, 'indeed'),
+                ]))->run($apiUserId),
+            );
+            source_same(3, count((new JobRepository())->list($apiUserId)));
+        },
+    );
+    source_check(
+        'changing or removing Google Jobs credentials disables only that account source',
+        function () use ($apiUserId, $apiIds, $otherId): void {
+            $repository = new SourceRepository();
+            $otherIds = (new SourcePresetService())->install($otherId, ['google_jobs', 'indeed']);
+            $repository->health($otherId, $otherIds['google_jobs'], true);
+            $repository->health($otherId, $otherIds['indeed'], true);
+            $repository->health($apiUserId, $apiIds['google_jobs'], true);
+            (new SettingsService())->save($apiUserId, 'google_jobs', [
+                'query' => 'Cloud engineer jobs',
+            ]);
+            source_same(0, (int) $repository->get($apiUserId, $apiIds['google_jobs'])['enabled']);
+            source_same('untested', $repository->get($apiUserId, $apiIds['google_jobs'])['health']);
+            source_same(0, (int) $repository->get($apiUserId, $apiIds['indeed'])['enabled']);
+            source_same(1, (int) $repository->get($otherId, $otherIds['google_jobs'])['enabled']);
+            source_same(1, (int) $repository->get($otherId, $otherIds['indeed'])['enabled']);
+            (new SettingsService())->save($apiUserId, 'google_jobs', ['remove_key' => '1']);
+            source_same(
+                '',
+                (new SettingsRepository())->get($apiUserId, 'google_jobs')['encrypted_key'],
+            );
+            source_rejects(
+                fn() => (new GoogleJobsAdapter())->validate(
+                    $repository->get($apiUserId, $apiIds['google_jobs']),
+                ),
+            );
+            source_rejects(
+                fn() => (new GoogleJobsAdapter(sourceKey: 'indeed'))->validate(
+                    $repository->get($apiUserId, $apiIds['indeed']),
+                ),
+            );
         },
     );
 } catch (Throwable $exception) {

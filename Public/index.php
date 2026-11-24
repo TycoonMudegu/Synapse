@@ -19,7 +19,7 @@ try {
     $status = $exception instanceof HttpException ? $exception->status : 500;
     $message =
         $status === 500
-            ? 'JobFlow could not complete this request. Check the system log and database configuration.'
+            ? 'Synapse could not complete this request. Check the system log and database configuration.'
             : $exception->getMessage();
     if ($status === 500) {
         $reference = bin2hex(random_bytes(6));
@@ -43,11 +43,11 @@ try {
     $title = $status === 500 ? 'Setup or service needs attention' : 'Unable to open this page';
     // Error rendering must also work when authentication or the database is unavailable.
     $content =
-        '<div class="auth-card"><div class="brand">JobFlow<span>↗</span></div><h1>' .
+        '<div class="auth-card"><div class="brand">Synapse<span>↗</span></div><h1>' .
         e($title) .
         '</h1><p>' .
         e($message) .
-        '</p><p>First installation? Follow README.md, run the migrations and create your administrator using the CLI.</p><a class="btn btn-primary" href="' .
+        '</p><p>Please try again, or contact the person who shared Synapse with you.</p><a class="btn btn-primary" href="' .
         e(app_url('/login')) .
         '">Return to sign in</a></div>';
     require BASE_PATH . '/Resources/Views/layouts/guest.php';

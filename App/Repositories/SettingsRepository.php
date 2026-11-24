@@ -54,7 +54,12 @@ final class SettingsRepository extends Repository
             'sync_minutes' => 30,
             'alert_query' => '',
         ],
-        'documents' => ['default_format' => 'pdf'],
+        'google_jobs' => [
+            'encrypted_key' => '',
+            'query' => 'IT jobs in Kenya',
+            'location' => 'Kenya',
+        ],
+        'documents' => ['default_format' => 'pdf', 'layout_mode' => 'preserve'],
     ];
 
     public function get(int $userId, string $section): array

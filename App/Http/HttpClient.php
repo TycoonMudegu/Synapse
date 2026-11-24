@@ -36,7 +36,7 @@ class HttpClient
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_PROXY => '',
             CURLOPT_RESOLVE => [$resolved['host'] . ':443:' . $ip],
-            CURLOPT_USERAGENT => 'JobFlow/1.0 (public permitted job access)',
+            CURLOPT_USERAGENT => 'Synapse/1.0 (public permitted job access)',
             CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (
                 &$responseBody,
                 &$tooLarge,

@@ -36,6 +36,7 @@ final class DashboardController
             'sources' => (new SourceRepository())->all($id),
             'providers' => (new SettingsRepository())->providers($id),
             'automation' => (new SettingsRepository())->get($id, 'automation'),
+            'automationStatus' => (new \App\Services\AutomationService())->status($id),
             'discovery' => (new SettingsRepository())->get($id, 'discovery'),
             'latestRun' => (new QueueRepository())->latestRun($id, 'discovery'),
         ]);

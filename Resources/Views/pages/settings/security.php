@@ -1,6 +1,6 @@
 <section class="panel">
     <div class="panel-header"><h2>Change password</h2></div>
-    <form action="<?= e(app_base_path()); ?>/api/security/password" data-async class="panel-body form-stack">
+    <form action="<?= e(app_base_path()); ?>/api/security/password" x-data="asyncForm" x-on:submit.prevent="submit($event)" class="panel-body form-stack">
         <div class="form-error" hidden role="alert"></div>
         <div class="field">
             <label for="current-password">Current password</label>
@@ -50,7 +50,7 @@
         <h2>Account sessions</h2>
         <button
             class="btn btn-sm"
-            data-action="<?= e(app_base_path()); ?>/api/security/sessions/revoke"
+            x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/security/sessions/revoke"
             data-confirm="Sign out all other sessions and revoke remembered sign-ins?"
         >
             Revoke other sessions

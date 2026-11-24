@@ -14,6 +14,7 @@ final class PublicJobParser
         $pathPattern = match ($sourceKey) {
             'brightermonday' => '#^/listings/[a-z0-9-]+/?$#i',
             'fuzu' => '#^/kenya/jobs/[a-z0-9-]+/?$#i',
+            'corporatestaffing' => '#^/job/[a-z0-9-]+/?$#i',
             default => throw new HttpException('Unknown public job source.'),
         };
         $links = [];
@@ -41,7 +42,10 @@ final class PublicJobParser
                 continue;
             }
             // Only canonical public detail paths are fetched, never search or tracking queries.
-            $url = $origin . rtrim($parts['path'], '/');
+            $url =
+                $origin .
+                rtrim($parts['path'], '/') .
+                ($sourceKey === 'corporatestaffing' ? '/' : '');
             $links[$url] = $url;
         }
         return array_values($links);
@@ -149,6 +153,48 @@ final class PublicJobParser
             }
             $deadline = substr($date, 0, 10);
         }
+        // Listing metadata can outlive the employer's explicit closing date.
+        if (
+            preg_match_all(
+                '/(?:on\s+or\s+before|closing\s+date\s*:?|application\s+deadline\s*:?)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i',
+                $description,
+                $closingDates,
+                PREG_SET_ORDER,
+            )
+        ) {
+            foreach ($closingDates as $closing) {
+                $date = \DateTimeImmutable::createFromFormat(
+                    '!j F Y',
+                    $closing[1] . ' ' . $closing[2] . ' ' . $closing[3],
+                );
+                $errors = \DateTimeImmutable::getLastErrors();
+                if ($date && (!$errors || (!$errors['warning_count'] && !$errors['error_count']))) {
+                    $advertised = $date->format('Y-m-d');
+                    $deadline = $deadline === null ? $advertised : min($deadline, $advertised);
+                }
+            }
+        }
+        $applicationEmail = null;
+        // Only classify email applications when the vacancy explicitly directs
+        // candidates to send their CV/application to a single address.
+        if (
+            preg_match_all(
+                '/\b(?:send|submit|forward|email)\b.{0,180}\b(?:CVs?|résumés?|resumes?|curriculum vitae|applications?|cover letters?)\b.{0,180}\b(?:to|via)\s*:?\s*([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})/isu',
+                $description,
+                $contacts,
+            )
+        ) {
+            $addresses = array_values(array_unique(array_map('strtolower', $contacts[1])));
+            preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/i', $description, $mentioned);
+            $allAddresses = array_unique(array_map('strtolower', $mentioned[0]));
+            if (
+                count($addresses) === 1 &&
+                count($allAddresses) === 1 &&
+                filter_var($addresses[0], FILTER_VALIDATE_EMAIL)
+            ) {
+                $applicationEmail = $addresses[0];
+            }
+        }
         $employment = 'not_specified';
         foreach ((array) ($posting['employmentType'] ?? []) as $type) {
             $employment = match ($type) {
@@ -175,7 +221,8 @@ final class PublicJobParser
             'workplace' =>
                 ($posting['jobLocationType'] ?? '') === 'TELECOMMUTE' ? 'remote' : 'not_specified',
             'original_url' => $url,
-            'application_method' => 'external',
+            'application_method' => $applicationEmail ? 'email' : 'external',
+            'application_email' => $applicationEmail,
         ];
     }
 

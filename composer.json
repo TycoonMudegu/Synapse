@@ -4,15 +4,18 @@
     "type": "project",
     "require": {
         "php": "^8.2",
-        "ext-pdo": "*",
-        "ext-pdo_mysql": "*",
         "ext-curl": "*",
+        "ext-dom": "*",
         "ext-fileinfo": "*",
         "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
         "ext-sodium": "*",
-        "ext-dom": "*",
         "ext-zip": "*",
         "dompdf/dompdf": "^3.1",
+        "google/cloud-storage": "^2.7",
+        "phpmailer/phpmailer": "^7.2",
         "smalot/pdfparser": "^2.12"
     },
     "autoload": {
@@ -24,8 +27,8 @@
         ]
     },
     "scripts": {
-        "test": "php tests/urls.php && php tests/run.php && php tests/sources.php",
-        "lint": "find App Bootstrap Routes Resources/Views Public scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l && php -l index.php"
+        "test": "php tests/urls.php && php tests/run.php && php tests/sources.php && php tests/saas.php && php tests/mail.php && php tests/layout.php && php tests/documents.php",
+        "lint": "find App Bootstrap Routes Resources/Views Public database scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l && php -l index.php"
     },
     "config": {
         "sort-packages": true

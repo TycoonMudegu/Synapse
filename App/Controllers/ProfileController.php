@@ -22,6 +22,10 @@ final class ProfileController
             'title' => 'My CV & career profile',
             'active' => 'profile',
             'profile' => (new ProfileRepository())->get(Auth::id()),
+            'documentLayout' => (new \App\Repositories\SettingsRepository())->get(
+                Auth::id(),
+                'documents',
+            )['layout_mode'],
             'documents' => array_values(
                 array_filter(
                     (new DocumentRepository())->all(Auth::id()),
@@ -48,8 +52,23 @@ final class ProfileController
     {
         $format = Validator::choice($request->string('format'), 'export format', ['pdf', 'docx']);
         $profile = (new ProfileRepository())->get(Auth::id());
-        $id = (new Exporter())->cv(Auth::id(), $profile, $format, 'Career CV');
-        (new DocumentRepository())->addCv(Auth::id(), $id, ['profile' => $profile]);
+        if (
+            (new \App\Repositories\SettingsRepository())->get(Auth::id(), 'documents')[
+                'layout_mode'
+            ] === 'preserve'
+        ) {
+            $exporter = new \App\Services\Documents\SourceExporter();
+            $id = $exporter->export(
+                Auth::id(),
+                $exporter->master(Auth::id()),
+                $format,
+                'Career CV',
+                snapshot: ['profile' => $profile],
+            );
+        } else {
+            $id = (new Exporter())->cv(Auth::id(), $profile, $format, 'Career CV');
+            (new DocumentRepository())->addCv(Auth::id(), $id, ['profile' => $profile]);
+        }
         Response::json([
             'ok' => true,
             'redirect' => '/documents/' . $id,

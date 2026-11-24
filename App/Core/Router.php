@@ -36,20 +36,65 @@ final class Router
                 }
                 Response::redirect('/login');
             }
+            if (
+                $private &&
+                empty(Auth::user()['onboarded_at']) &&
+                !in_array(
+                    $request->path(),
+                    [
+                        '/onboarding',
+                        '/api/onboarding',
+                        '/api/onboarding/skip',
+                        '/plans',
+                        '/api/billing/mpesa',
+                        '/api/billing/promo',
+                        '/logout',
+                    ],
+                    true,
+                ) &&
+                !preg_match('#^/api/billing/payments/[0-9]+/check$#', $request->path()) &&
+                !preg_match('#^/api/documents/uploads(?:/complete)?$#', $request->path()) &&
+                !preg_match('#^/api/tasks/[0-9]+$#', $request->path())
+            ) {
+                if ($request->wantsJson()) {
+                    Response::json(
+                        [
+                            'ok' => false,
+                            'message' => 'Finish your setup to continue.',
+                            'redirect' => '/onboarding',
+                        ],
+                        409,
+                    );
+                }
+                Response::redirect('/onboarding');
+            }
             if ($private && $method === 'POST') {
                 $limits = new \App\Repositories\RateLimitRepository();
                 $limits->check(Auth::id(), 'mutations', 120);
                 if (
                     preg_match(
-                        '#/(extract|assist|profile|test|analyse|prepare|send)$#',
+                        '#/(extract|assist|profile|test|analyse|prepare|send|preview|export)$#',
                         $request->path(),
                     )
                 ) {
                     $limits->check(Auth::id(), 'expensive_operations', 12);
                 }
             }
-            if (!in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) {
+            if (
+                !in_array($method, ['GET', 'HEAD', 'OPTIONS'], true) &&
+                $request->path() !== '/api/billing/mpesa/callback'
+            ) {
                 Csrf::validate($request->string('_csrf', $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+            }
+            if (
+                $private &&
+                $method === 'POST' &&
+                preg_match(
+                    '#^/api/(jobs/[0-9]+/analyse|applications/[0-9]+/(prepare|send))$#',
+                    $request->path(),
+                )
+            ) {
+                (new \App\Services\Entitlements())->requirePaid(Auth::id());
             }
             $arguments = [$request];
             foreach ($matches as $key => $value) {

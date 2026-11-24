@@ -15,6 +15,7 @@ use App\Repositories\SettingsRepository;
 final class ApplicationService
 {
     public const TRANSITIONS = [
+        'test_sent' => [],
         'draft' => ['ready_for_review', 'withdrawn'],
         'ready_for_review' => ['draft', 'approved', 'withdrawn'],
         'approved' => ['ready_for_review', 'awaiting_external_action', 'withdrawn'],
@@ -85,6 +86,14 @@ final class ApplicationService
                 'Verify the job details and application instructions before approval.',
             );
         }
+        foreach (['cv_document_id', 'letter_document_id'] as $field) {
+            \App\Services\Documents\DocumentStorage::assertAvailable(
+                (new DocumentRepository())->get(
+                    (int) $application['user_id'],
+                    (int) $application[$field],
+                ),
+            );
+        }
         if ($application['deadline'] && $application['deadline'] < date('Y-m-d')) {
             throw new HttpException('This vacancy has expired.');
         }
@@ -92,6 +101,7 @@ final class ApplicationService
 
     public function send(int $userId, int $id): void
     {
+        (new Entitlements())->requirePaid($userId);
         $repository = new ApplicationRepository();
         $settings = (new SettingsRepository())->get($userId, 'automation');
         $application = Database::transaction(function () use (

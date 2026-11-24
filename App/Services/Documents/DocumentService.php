@@ -24,6 +24,12 @@ final class DocumentService
 
     public function upload(int $userId, array $file, string $kind): array
     {
+        if (DocumentStorage::enabled()) {
+            throw new HttpException(
+                'Upload documents directly to cloud storage using the upload form.',
+                409,
+            );
+        }
         if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             throw new HttpException(
                 'The upload failed. Choose a file within the server upload limit.',
@@ -48,7 +54,8 @@ final class DocumentService
         }
         if (
             !isset(self::TYPES[$mime]) ||
-            ($kind === 'master_cv' && !in_array(self::TYPES[$mime], ['pdf', 'docx'], true)) ||
+            (in_array($kind, ['master_cv', 'cover_letter_template'], true) &&
+                !in_array(self::TYPES[$mime], ['pdf', 'docx'], true)) ||
             ($kind === 'job_poster' && self::TYPES[$mime] === 'docx')
         ) {
             throw new HttpException(
@@ -74,7 +81,7 @@ final class DocumentService
                 500,
             );
         }
-        chmod($absolute, 0600);
+        PrivateFiles::protect($absolute);
         $text = '';
         try {
             if ($mime === 'application/pdf') {
@@ -114,13 +121,18 @@ final class DocumentService
     public function extractPoster(int $userId, int $documentId): array
     {
         $document = (new DocumentRepository())->get($userId, $documentId);
+        DocumentStorage::assertAvailable($document);
+        if (($document['processing_status'] ?? 'ready') !== 'ready') {
+            $this->process($userId, $documentId);
+            $document = (new DocumentRepository())->get($userId, $documentId);
+        }
         $image = null;
         if (str_starts_with($document['mime_type'], 'image/')) {
             $image =
                 'data:' .
                 $document['mime_type'] .
                 ';base64,' .
-                base64_encode(file_get_contents($this->path($document)));
+                base64_encode((new DocumentStorage())->read($document));
         } elseif (trim($document['extracted_text'] ?? '') === '') {
             throw new HttpException(
                 'No text could be extracted from this PDF. Upload an image of the poster with a vision-capable model, or paste its text. The original file is saved.',
@@ -137,6 +149,11 @@ final class DocumentService
     public function profileDraft(int $userId, int $documentId): array
     {
         $document = (new DocumentRepository())->get($userId, $documentId);
+        DocumentStorage::assertAvailable($document);
+        if (($document['processing_status'] ?? 'ready') !== 'ready') {
+            $this->process($userId, $documentId);
+            $document = (new DocumentRepository())->get($userId, $documentId);
+        }
         if (trim($document['extracted_text'] ?? '') === '') {
             throw new HttpException(
                 'No readable CV text was extracted. You can enter your career profile manually.',
@@ -149,6 +166,10 @@ final class DocumentService
 
     public function path(array $document): string
     {
+        DocumentStorage::assertAvailable($document);
+        if (DocumentStorage::isCloud($document)) {
+            throw new HttpException('This document is stored in Google Cloud Storage.', 409);
+        }
         $filename = $document['storage_path'];
         if (!preg_match('/^[a-f0-9]{48}\.[a-z0-9]+$/', $filename)) {
             throw new HttpException('Invalid document storage path.', 500);
@@ -158,6 +179,78 @@ final class DocumentService
             throw new HttpException('The stored file is missing.', 404);
         }
         return $path;
+    }
+
+    public function process(int $userId, int $documentId): void
+    {
+        $repository = new DocumentRepository();
+        $document = $repository->get($userId, $documentId);
+        if ($document['processing_status'] !== 'ready') {
+            $bytes = (new DocumentStorage())->read($document, true);
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+            $expected = $document['mime_type'];
+            $text = '';
+            try {
+                if (
+                    $expected === RendererClient::DOCX &&
+                    in_array($mime, ['application/zip', RendererClient::DOCX], true)
+                ) {
+                    $temporary = tempnam(sys_get_temp_dir(), 'synapse-extract-');
+                    try {
+                        if (
+                            $temporary === false ||
+                            file_put_contents($temporary, $bytes) !== strlen($bytes)
+                        ) {
+                            throw new HttpException(
+                                'The document worker could not read the DOCX.',
+                                503,
+                            );
+                        }
+                        chmod($temporary, 0600);
+                        $text = $this->docxText($temporary);
+                    } finally {
+                        if ($temporary !== false && is_file($temporary)) {
+                            unlink($temporary);
+                        }
+                    }
+                } elseif ($mime !== $expected) {
+                    throw new HttpException(
+                        'The uploaded contents do not match the document format.',
+                    );
+                } elseif (str_starts_with($mime, 'image/')) {
+                    $size = getimagesizefromstring($bytes);
+                    if (!$size || $size[0] * $size[1] > 25000000) {
+                        throw new HttpException('The image is invalid or exceeds 25 megapixels.');
+                    }
+                } elseif ($mime === 'application/pdf') {
+                    try {
+                        $text = (new Parser())->parseContent($bytes)->getText();
+                    } catch (\Throwable) {
+                        $text = '';
+                    }
+                }
+            } catch (HttpException $error) {
+                $query = \App\Core\Database::connection()->prepare(
+                    "UPDATE documents SET processing_status = 'failed' WHERE id = ? AND user_id = ?",
+                );
+                $query->execute([$documentId, $userId]);
+                throw $error;
+            }
+            $repository->updateText($userId, $documentId, mb_substr($text, 0, 100000));
+            \App\Core\Database::connection()
+                ->prepare(
+                    "UPDATE documents SET processing_status = 'ready' WHERE id = ? AND user_id = ?",
+                )
+                ->execute([$documentId, $userId]);
+        }
+        $accounts = new \App\Repositories\AccountRepository();
+        $preferences = $accounts->preferences($userId);
+        if (
+            (int) ($preferences['cv_document_id'] ?? 0) === $documentId &&
+            !$accounts->review($userId, $documentId, $preferences['field_key'])
+        ) {
+            (new CvReviewService())->grade($userId, $documentId);
+        }
     }
 
     public function docxText(string $path): string

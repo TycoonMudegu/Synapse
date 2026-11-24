@@ -6,12 +6,12 @@
     <div class="heading-actions"><a class="btn" href="<?= e(app_base_path()); ?>/jobs/<?= e($job['id']); ?>/edit"><?= icon('square-pen'); ?>Edit details</a>
         <button
             class="btn"
-            data-action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/analyse"
+            x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/analyse"
             data-loading="Queuing analysis…"
         >
             <?= icon('sparkles'); ?>Analyse fit
         </button>
-        <button class="btn btn-primary" data-action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/apply">
+        <button class="btn btn-primary" x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/apply">
             <?= icon('send'); ?>Prepare application
         </button>
     </div>
@@ -59,7 +59,7 @@
             </div>
             <form
                 class="panel-body form-stack"
-                data-ai-assist
+                x-data="aiAssist" x-on:submit.prevent="submit($event)"
                 action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/assist"
             >
                 <div class="form-error" role="alert" hidden></div>
@@ -81,7 +81,7 @@
                 <button class="btn btn-soft self-start" data-loading="Preparing a factual draft…">
                     <?= icon('sparkles'); ?>Prepare draft
                 </button>
-                <div data-ai-result class="prose-text" role="status" hidden></div>
+                <div x-text="result" x-bind:hidden="!result" class="prose-text" role="status" hidden></div>
             </form>
         </section>
     </div>
@@ -174,7 +174,7 @@ if ($job['original_url']): ?>
                 </a>
                 <?php endif;
 ?> <?php if (!$job['verified_at']): ?>
-                <form action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/verify" data-async class="form-stack">
+                <form action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/verify" x-data="asyncForm" x-on:submit.prevent="submit($event)" class="form-stack">
                     <div class="form-error" role="alert" hidden></div>
                     <label class="check-label">
                         <input type="checkbox" name="verified" value="1" required />
@@ -190,7 +190,7 @@ if ($job['original_url']): ?>
         </section>
         <form
             action="<?= e(app_base_path()); ?>/api/jobs/<?= e($job['id']); ?>/status"
-            data-async
+            x-data="asyncForm" x-on:submit.prevent="submit($event)"
             class="panel panel-body form-stack"
         >
             <div class="form-error" hidden role="alert"></div>
@@ -209,3 +209,27 @@ if ($job['original_url']): ?>
         </form>
     </aside>
 </div>
+<script nonce="<?= e(CSP_NONCE); ?>">
+document.addEventListener('alpine:init', () => {
+    Alpine.data('aiAssist', () => ({
+        busy: false,
+        result: '',
+        async submit(event) {
+            if (this.busy) return;
+            const form = event.currentTarget;
+            form.querySelector('.form-error').hidden = true;
+            this.busy = true;
+            try {
+                await this.$store.app.withLoading(event.submitter, async () => {
+                    try {
+                        const response = await this.$store.app.request(form.action, { data: new FormData(form) });
+                        this.result = response.data.summary ?? response.data.answers?.join('\n\n') ?? '';
+                        if (response.data.uncertainties?.length) this.result += `\n\nNeeds your review:\n${response.data.uncertainties.join('\n')}`;
+                        this.$store.app.notify(response.message);
+                    } catch (error) { this.$store.app.formError(form, error.message); }
+                });
+            } finally { this.busy = false; }
+        },
+    }));
+});
+</script>

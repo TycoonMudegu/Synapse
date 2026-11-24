@@ -75,7 +75,7 @@ final class Auth
         return true;
     }
 
-    private static function establish(int $id): void
+    public static function establish(int $id): void
     {
         session_regenerate_id(true);
         $_SESSION['user_id'] = $id;

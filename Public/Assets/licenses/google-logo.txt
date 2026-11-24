@@ -1,0 +1,5 @@
+Google G sign-in logo
+Source: https://developers.google.com/static/identity/images/g-logo.png
+Usage: Continue with Google authentication button.
+Brand guidelines: https://developers.google.com/identity/branding-guidelines
+Google trademarks remain the property of Google LLC.

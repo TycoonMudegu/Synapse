@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/Bootstrap/App.php';
 
-use App\Repositories\ApplicationRepository;
 use App\Repositories\IntegrationRepository;
 use App\Repositories\QueueRepository;
 use App\Repositories\SettingsRepository;
@@ -20,11 +19,27 @@ try {
     $queue->recoverStale();
     foreach ($queue->users() as $user) {
         $userId = (int) $user['id'];
+        if (\App\Services\Documents\DocumentStorage::enabled()) {
+            foreach (
+                (new \App\Repositories\DocumentRepository())->archiveCandidates($userId)
+                as $document
+            ) {
+                $queue->enqueue($userId, 'archive_document', [
+                    'document_id' => (int) $document['id'],
+                ]);
+            }
+        }
         $settings = new SettingsRepository();
         $automation = $settings->get($userId, 'automation');
+        $paid = (new \App\Services\Entitlements())->paid($userId);
+        if (!$paid) {
+            $automation['discovery_enabled'] = false;
+            $automation['mode'] = 'manual';
+        }
         if ($automation['paused']) {
             continue;
         }
+        (new \App\Services\AutomationService())->queueSavedJobs($userId);
         $discovery = $settings->get($userId, 'discovery');
         $latest = $queue->latestRun($userId, 'discovery');
         if (
@@ -42,6 +57,7 @@ try {
         $gmail = $settings->get($userId, 'gmail');
         $connection = (new IntegrationRepository())->connection($userId);
         if (
+            $paid &&
             $connection &&
             ($gmail['monitor_enabled'] || $gmail['response_tracking']) &&
             (!$connection['last_sync_at'] ||
@@ -50,18 +66,8 @@ try {
         ) {
             $queue->enqueue($userId, 'gmail_sync');
         }
-        if (in_array($automation['mode'], ['approval', 'automatic'], true)) {
-            foreach (
-                (new ApplicationRepository())->all($userId, ['status' => 'approved'])
-                as $application
-            ) {
-                if ($application['method'] === 'email' && !$application['send_key']) {
-                    $queue->enqueue($userId, 'submit_application', [
-                        'application_id' => (int) $application['id'],
-                    ]);
-                }
-            }
-        }
+        (new \App\Services\AutomationService())->queueApprovedApplications($userId);
+        (new \App\Services\Mail\ManualJobAlertService())->queueForUser($userId);
     }
     $queue->pruneTransientRecords();
 } finally {

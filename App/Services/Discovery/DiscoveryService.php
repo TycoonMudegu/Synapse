@@ -27,7 +27,14 @@ final class DiscoveryService
             'rss' => new FeedAdapter(),
             'myjobmag' => new MyJobMagAdapter(),
             'brightermonday_public' => new PublicJobsAdapter('brightermonday'),
-            'fuzu_public' => new PublicJobsAdapter('fuzu'),
+            'fuzu_public' => new PublicJobsAdapter(
+                'fuzu',
+                new PublicContent(new FuzuBrowserClient()),
+            ),
+            'corporatestaffing_public' => new PublicJobsAdapter('corporatestaffing'),
+            'google_jobs_api' => new GoogleJobsAdapter(),
+            'talent_public' => new PublicJobsAdapter('talent'),
+            'indeed_api' => new GoogleJobsAdapter(sourceKey: 'indeed'),
             'email_alert' => new EmailAlertAdapter(),
             'json' => new JsonFeedAdapter(),
             default => throw new HttpException('This source has no supported adapter.'),
@@ -87,7 +94,13 @@ final class DiscoveryService
                     $source,
                     match ($source['adapter']) {
                         'myjobmag' => 200,
-                        'brightermonday_public', 'fuzu_public' => 20,
+                        'brightermonday_public',
+                        'fuzu_public',
+                        'corporatestaffing_public',
+                        'google_jobs_api',
+                        'talent_public',
+                        'indeed_api'
+                            => 20,
                         default => $limit - $processed,
                     },
                 );

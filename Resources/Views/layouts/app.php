@@ -1,4 +1,5 @@
 <?php
+$membership = (new \App\Repositories\AccountRepository())->membership(\App\Services\Security\Auth::id());
 $navigation = [
     ['dashboard', '/', 'layout-dashboard', 'Dashboard'],
     ['discover', '/discover', 'compass', 'Discover jobs'],
@@ -9,6 +10,7 @@ $navigation = [
     ['inbox', '/inbox', 'inbox', 'Inbox'],
     ['activity', '/activity', 'activity', 'Activity'],
     ['settings', '/settings', 'settings-2', 'Settings'],
+    ['plans', '/plans', 'star', 'Plans & billing'],
 ]; ?>
 <!doctype html>
 <html lang="en-GB">
@@ -18,23 +20,23 @@ $navigation = [
         <meta name="csrf-token" content="<?= e(\App\Services\Security\Csrf::token()); ?>" />
         <meta name="app-base-path" content="<?= e(app_base_path()); ?>" />
         <meta name="theme-color" content="#326080" />
-        <title><?= e($title ?? 'Workspace'); ?> · JobFlow</title>
+        <title><?= e($title ?? 'Workspace'); ?> · Synapse</title>
         <link rel="icon" href="<?= e(app_base_path()); ?>/Assets/favicon.svg" type="image/svg+xml" />
         <link rel="stylesheet" href="<?= e(app_base_path()); ?>/Assets/app.css" />
-        <script type="module" src="<?= e(app_base_path()); ?>/Assets/app.js"></script>
+        <?php require BASE_PATH . '/Resources/Views/components/alpine.php'; ?>
     </head>
-    <body>
+    <body class="<?= e($bodyClass ?? ''); ?>" x-data="appShell" x-on:keydown.escape.window="menuOpen = false">
         <a class="sr-only focus:not-sr-only" href="#main-content">Skip to content</a>
         <button
             class="sidebar-overlay"
-            id="sidebar-overlay"
+            id="sidebar-overlay" x-on:click="menuOpen = false" x-bind:hidden="!menuOpen"
             aria-label="Close navigation"
             hidden
         ></button>
-        <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+        <aside class="sidebar" id="sidebar" x-bind:class="{ open: menuOpen }" aria-label="Main navigation">
             <a class="brand" href="<?= e(app_base_path()); ?>/">
                 <span class="brand-mark"><?= icon('arrow-up-right'); ?></span>
-                JobFlow
+                Synapse
                 <span>.</span>
             </a>
             <p class="sidebar-caption">Make your next move</p>
@@ -48,6 +50,7 @@ $navigation = [
                 <?php endforeach; ?>
             </nav>
             <div class="sidebar-bottom">
+                <a class="sidebar-plan" href="<?= e(app_url('/plans')); ?>"><?= icon('sparkles'); ?><span><?= $membership['active'] ? 'Synapse Plus' : 'Free plan'; ?><small><?= $membership['active'] ? 'A little more momentum' : 'Explore Plus from KSh 200'; ?></small></span></a>
                 <div class="sidebar-note">
                     <div class="flex items-center gap-2">
                         <?= icon('sprout'); ?>
@@ -59,7 +62,7 @@ $navigation = [
                     <div class="avatar"><?= e(initials($currentUser['name'])); ?></div>
                     <a href="<?= e(app_base_path()); ?>/settings">
                         <div class="profile-name"><?= e($currentUser['name']); ?></div>
-                        <div class="text-[10px] text-[#a28b76]">Personal workspace</div>
+                        <div class="text-[10px] text-[#a28b76]">Private workspace</div>
                     </a>
                     <form action="<?= e(app_base_path()); ?>/logout" method="post" class="ml-auto">
                         <?= csrf_field(); ?>
@@ -75,7 +78,7 @@ $navigation = [
                 <div class="breadcrumbs">
                     <button
                         class="icon-button mobile-menu"
-                        id="menu-toggle"
+                        id="menu-toggle" x-on:click="toggleMenu" x-bind:aria-expanded="menuOpen"
                         aria-label="Open navigation"
                         aria-controls="sidebar"
                         aria-expanded="false"
@@ -98,7 +101,9 @@ $navigation = [
                 </div>
             </header>
             <main class="workspace" id="main-content">
-                <div id="task-region" aria-live="polite"></div>
+                <div id="task-region" aria-live="polite" x-bind:hidden="!$store.app.taskText" hidden>
+                    <div class="task-progress"><span class="spinner" aria-hidden="true" x-bind:hidden="!$store.app.taskSpinning"></span><span x-text="$store.app.taskText"></span></div>
+                </div>
                 <?= $content; ?>
                 <footer class="footer-note">
                     <span>One thoughtful application at a time.</span>
@@ -106,11 +111,11 @@ $navigation = [
                 </footer>
             </main>
         </div>
-        <div class="toast-region" aria-live="polite" id="toasts"></div>
+        <?php require BASE_PATH . '/Resources/Views/components/feedback.php'; ?>
         <dialog id="upload-dialog" aria-labelledby="upload-title">
             <div class="dialog-header">
                 <h2 id="upload-title">Upload a document</h2>
-                <button class="icon-button" data-close-dialog aria-label="Close">
+                <button class="icon-button" x-on:click="$store.app.closeDialog($el)" aria-label="Close">
                     <?= icon('x'); ?>
                 </button>
             </div>
@@ -118,7 +123,7 @@ $navigation = [
                 action="<?= e(app_base_path()); ?>/api/documents"
                 method="post"
                 enctype="multipart/form-data"
-                data-async
+                x-data="asyncForm" x-on:submit.prevent="submit($event)"
                 class="panel-body form-stack"
             >
                 <div class="form-error" role="alert" hidden></div>
@@ -126,6 +131,7 @@ $navigation = [
                     <label for="upload-kind">Document type</label>
                     <select name="kind" id="upload-kind">
                         <option value="master_cv">Master CV</option>
+                        <option value="cover_letter_template">Cover letter template</option>
                         <option value="supporting">Supporting document</option>
                         <option value="job_poster">Job poster</option>
                     </select>

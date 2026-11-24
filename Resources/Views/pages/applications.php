@@ -8,7 +8,7 @@
 </div>
 <section class="panel">
     <div class="toolbar">
-        <form method="get" class="filter-form" data-filter-form>
+        <form method="get" class="filter-form" x-data="filterForm" x-on:submit.prevent="submit($event)">
             <input
                 type="search"
                 name="q"

@@ -1,13 +1,20 @@
 Options -Indexes -MultiViews
 DirectoryIndex index.php
 
+<FilesMatch "^\.env(?:\..*)?$">
+    Require all denied
+</FilesMatch>
+
 RewriteEngine On
+
+# Only the authenticated, release-specific deployment endpoint is executable here.
+RewriteRule ^_db-deploy/releases/[a-f0-9]{40}/endpoint\.php$ - [L]
 
 # The root entry point delegates to the existing public front controller.
 RewriteRule ^(?:index\.php)?$ - [L]
 
 # Only compiled public assets may be served directly from the project folder.
-RewriteRule ^Assets/(.+\.(?:css|js|svg|woff2|txt))$ Public/Assets/$1 [END,NC]
+RewriteRule ^Assets/(.+\.(?:css|js|mjs|svg|png|woff2|txt|bcmap|pfb|ttf|wasm))$ Public/Assets/$1 [END,NC]
 
 # Keep source code, configuration, uploads and dependencies off the web.
 RewriteCond %{REQUEST_FILENAME} -f [OR]
