@@ -57,15 +57,19 @@ def copy_directory(relative, destination):
         shutil.copyfile(path, target)
 
 
-def build():
+def prepare(include_vendor):
     for name in REQUIRED:
+        if not include_vendor and name.startswith('vendor/'):
+            continue
         if not (ROOT / name).is_file():
-            raise ValueError('Build dependencies/assets before packaging; missing ' + name)
+            raise ValueError('Prepare dependencies/assets locally before packaging; missing ' + name)
     if OUTPUT.exists():
         shutil.rmtree(OUTPUT)
     application = OUTPUT / 'application'
     application.mkdir(parents=True)
     for relative in DIRECTORIES:
+        if relative == 'vendor' and not include_vendor:
+            continue
         copy_directory(relative, application)
     for relative in FILES:
         validate_file(ROOT / relative)
@@ -85,6 +89,16 @@ def build():
                 for path in sorted(application.rglob('*')) if path.is_file()}
     (OUTPUT / 'manifest.json').write_text(json.dumps({'files': manifest}, sort_keys=True))
     print(f'Release prepared: {len(manifest)} runtime files. Environment, credentials, local storage and tests excluded.')
+    if not include_vendor:
+        print('Existing source and assets staged without vendor; no dependencies installed or assets built.')
+
+
+def build():
+    prepare(include_vendor=True)
+
+
+def stage():
+    prepare(include_vendor=False)
 
 
 class NoRedirects(urllib.request.HTTPRedirectHandler):
@@ -115,10 +129,12 @@ if __name__ == '__main__':
     try:
         if sys.argv[1:] == ['build']:
             build()
+        elif sys.argv[1:] == ['stage']:
+            stage()
         elif sys.argv[1:] == ['smoke']:
             smoke()
         else:
-            raise ValueError('Usage: python3 scripts/release.py build|smoke')
+            raise ValueError('Usage: python3 scripts/release.py stage|build|smoke')
     except Exception as error:
         print('Release failed: ' + str(error), file=sys.stderr)
         sys.exit(1)

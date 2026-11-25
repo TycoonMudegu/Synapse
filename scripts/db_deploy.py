@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an isolated FTP package or drive its authenticated HTTPS endpoint."""
+"""Stage an isolated FTP package or drive its authenticated HTTPS endpoint."""
 
 import hashlib
 import hmac
@@ -382,14 +382,14 @@ if __name__ == '__main__':
     try:
         if sys.argv[1:] == ['config']:
             configuration()
-        elif sys.argv[1:] == ['build']:
+        elif sys.argv[1:] in (['stage'], ['build']):
             build()
         elif sys.argv[1:] == ['check']:
             check()
         elif sys.argv[1:] == ['run']:
             run()
         else:
-            raise ValueError('Usage: python3 scripts/db_deploy.py config|check|build|run')
+            raise ValueError('Usage: python3 scripts/db_deploy.py config|check|stage|build|run')
     except Exception as error:
         print(f'Database deployment failed: {error}', file=sys.stderr)
         sys.exit(1)

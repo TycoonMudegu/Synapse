@@ -194,4 +194,4 @@ The ordinary suites force local test storage and never write to the live bucket.
 
 ## Production deployment
 
-GitHub Actions is configured for `https://jobflow.mystuffs.co.ke`, with tests before deployment, authenticated SQL migrations before the application upload, and final public checks. The FTP-visible destination, hosting environment and GitHub credentials must be configured before the first release. See [hosting setup and required Actions settings](docs/deployment.md) and [database migration and recovery commands](database/README.md).
+GitHub Actions is configured for `https://jobflow.mystuffs.co.ke` to run authenticated SQL migrations, then sync application changes and delete obsolete tracked files. Actions does not install dependencies or build assets. Prepare and test changes locally, commit compiled assets, and upload `vendor/` separately; sync excludes it from upload and deletion. The FTP-visible destination, hosting environment and GitHub credentials must be configured before the first release. See [hosting setup and required Actions settings](docs/deployment.md) and [database migration and recovery commands](database/README.md).

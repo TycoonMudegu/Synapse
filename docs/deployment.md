@@ -4,7 +4,7 @@ Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic
 
 ## GitHub Actions
 
-[The deployment workflow](../.github/workflows/deploy.yml) deploys pushes to `main`, and also supports manual runs. Its verification job runs PHP integration, migration and deployment transport checks on both MySQL 8.4 and MariaDB 10.11, plus browser checks on MySQL. Application upload starts only after production migration history and the required schema have been verified.
+[The deployment workflow](../.github/workflows/deploy.yml) deploys pushes to `main`, and also supports manual runs. Actions runs authenticated database migrations, then synchronizes application changes and deletes obsolete files recorded in the FTP sync history. It does not install dependencies, compile assets, run CI tests or upload build artifacts. Run checks and prepare assets locally before pushing. Application sync starts only after production migration history and the required schema have been verified.
 
 Create the `production` GitHub environment and configure these settings there (repository settings also work when no environment value overrides them):
 
@@ -23,11 +23,11 @@ The workflow also accepts `FTP_PROTOCOL` and `FTP_PORT` from Secrets when no mat
 
 The deployment keys are also listed in `.env.example` and the private local `.env` for setup. The example keeps credential values empty. Actions reads its own configured secrets and variables, so editing a local env file does not update GitHub or hosting. If `DB_DEPLOY_SECRET` already exists in GitHub, reuse that exact value in private `.env` and the hosting `.env`; do not generate a different value for either file. GitHub cannot return the saved secret value. If it is no longer available, generate a replacement privately and update all three locations together.
 
-The workflow installs locked Composer dependencies, prepares PDF.js and Tailwind assets, and builds two upload packages. The application package uses an explicit list of runtime paths; it excludes local `.env`, Google credential JSON files, private storage, email receipts, tests, Node modules and Git metadata. The migration package contains only the SQL migration files and its small authenticated PHP runtime. Both packages are assembled locally under ignored directories, `.release/` and `.migration-upload/`.
+The workflow copies the existing runtime source and checked-in `Public/Assets/` files into an upload directory. No Composer, npm, Node setup or asset build runs in Actions. `python3 scripts/release.py stage` selects runtime paths without requiring or copying `vendor/`; private `.env`, Google credential JSON files, storage, email receipts, tests, Node modules and Git metadata are also excluded. `python3 scripts/db_deploy.py stage` copies the SQL migrations and their standalone authenticated PHP handler and writes its integrity manifest. These staging steps only copy and hash files; they do not compile application code. Temporary upload directories are `.release/` and `.migration-upload/`.
 
-After building, the workflow saves `synapse-release-<commit>-<attempt>` in the run's **Artifacts** section for seven days and links it from the deployment summary. It contains only `.release/` and `.migration-upload/`, including their required `.htaccess` files. The download remains available if a later migration or FTP step fails. Earlier runs did not save a downloadable artifact; a successful build step alone did not create one. The migration package's file list and detailed FTP directory/upload operations are also recorded before the migration request.
+Upload Composer dependencies separately to `/domains/jobflow.mystuffs.co.ke/public_html/vendor/`. Prepare them locally from the current `composer.lock` using `composer install --no-dev --prefer-dist --no-interaction`, then ZIP the `vendor` directory, upload it and extract it with the hosting file manager. Confirm `public_html/vendor/autoload.php` exists. Keep normal PSR-4 fallback enabled; avoid `--classmap-authoritative` so new application classes can load without regenerating vendor autoload files on every source update. Repeat the separate upload when Composer dependencies change.
 
-The first upload installs access rules and empty private runtime directories. A read-only HTTPS `HEAD /.env` check must return access denied. A release-specific migration endpoint then verifies authentication, the package manifest and every file hash before connecting to the database. SQL changes run before the application FTP upload. The final checks request the login page, compiled CSS and PDF worker with the expected JavaScript MIME type. Uploaded user files and the hosting environment are kept outside the application upload's managed file set.
+The first upload installs access rules and empty private runtime directories. A read-only HTTPS `HEAD /.env` check must return access denied. A release-specific migration endpoint then verifies authentication, the package manifest and every file hash before connecting to the database. SQL changes run before the application FTP sync. The application sync retains `.ftp-synapse-application.json` to update changed files and remove previously deployed files that are no longer in the selected runtime paths. Explicit exclusions protect `vendor/`, `.env`, `storage/` and `_db-deploy/` from upload and deletion, including entries tracked by an older release. Untracked hosting files are not deleted, and `dangerous-clean-slate` stays disabled.
 
 ## One-time hosting setup
 
@@ -48,7 +48,7 @@ Confirm `/usr/bin/php` is the hosting account's correct PHP 8.2+ CLI binary. Upl
 
 ## First release and updates
 
-Once hosting setup and GitHub settings are present, push the verified source to `main` or run **Deploy Synapse** manually. Review the Actions summary for migration history, application upload and public checks. A green migration step by itself does not mean the whole application deployed.
+Once hosting setup, the separate vendor upload and GitHub settings are present, push the locally verified source to `main` or run **Deploy Synapse** manually. Review the Actions summary for migration history and application sync. A green migration step by itself does not mean the whole application deployed. Check the public site after the sync completes.
 
 After the first release, register an account and verify sign-in, document upload/download, a real PDF preview, the job/application review flow and cron processing. Confirm Google callbacks and the renderer connection on the production origin. Email tests must use an explicitly chosen recipient. Automatic job submissions remain subject to each account's own review and mode settings.
 
@@ -68,7 +68,7 @@ If the file exists at that exact location, check the host's rewrite, access and 
 
 ## Assets, worker and optional browser collection
 
-Prepare assets using `npm ci`, `npm run build:pdf` and `npm run build:css` during release preparation. Node is a build dependency, not a PHP web-server requirement. Deploy all of `Public/Assets/`, including the pinned PDF.js 6.5.438 modules, worker, character maps, fonts, WebAssembly files and licence. Serve `.mjs` files as JavaScript and retain the shipped `worker-src 'self'` policy. The reader fetches document bytes directly from private Google Cloud Storage after an authenticated viewing redirect.
+Prepare assets locally using `npm ci`, `npm run build:pdf` and `npm run build:css`, and commit the resulting `Public/Assets/` changes. Actions uploads these existing files unchanged. Node is a local build dependency, not a PHP web-server requirement. Deploy all of `Public/Assets/`, including the pinned PDF.js 6.5.438 modules, worker, character maps, fonts, WebAssembly files and licence. Serve `.mjs` files as JavaScript and retain the shipped `worker-src 'self'` policy. The reader fetches document bytes directly from private Google Cloud Storage after an authenticated viewing redirect.
 
 The minute cron works without a process supervisor. On a VPS, a supervised worker from `deploy/` can replace the bounded shared-hosting worker; run it under the same account as PHP and configure only one scheduler. Restart persistent workers after changing their environment.
 

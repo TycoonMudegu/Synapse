@@ -29,7 +29,7 @@ MySQL and MariaDB DDL can commit before a request finishes. If a response is los
 
 ## HTTPS deployment
 
-The [Actions workflow](../.github/workflows/deploy.yml) builds an isolated, release-specific migration package and uploads it before the application release. No Composer installation, shell command or arbitrary SQL is accepted over HTTP. Requests are HTTPS POSTs authenticated with a timestamped HMAC using the private `DB_DEPLOY_SECRET`. The endpoint checks the release ID, manifest digest, all packaged file hashes and access-denial rules before connecting. It also rejects SQL files outside the manifest. Ordinary application requests never run migrations.
+The [Actions workflow](../.github/workflows/deploy.yml) stages an isolated, release-specific migration package by copying the existing PHP and SQL files, then uploads it before syncing application files. It does not install dependencies or compile assets. No Composer installation, shell command or arbitrary SQL is accepted over HTTP. Requests are HTTPS POSTs authenticated with a timestamped HMAC using the private `DB_DEPLOY_SECRET`. The endpoint checks the release ID, manifest digest, all packaged file hashes and access-denial rules before connecting. It also rejects SQL files outside the manifest. Ordinary application requests never run migrations.
 
 Shared state and diagnostic logs live under `_db-deploy/`, protected by Apache rules. Keep this directory private and writable by the hosting PHP account. Do not delete it to bypass a failed migration. The endpoint reports safe schema identifiers and database error codes to Actions; detailed errors stay in the protected hosting log.
 

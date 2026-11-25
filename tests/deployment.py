@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -510,6 +511,29 @@ class PackagingTests(unittest.TestCase):
         self.assertFalse((package / 'App/Controllers').exists())
         self.assertFalse((package / 'App/Database/credential.json').exists())
         self.assertFalse((package / 'database/migrations/receipt.eml').exists())
+
+    def test_source_only_stage_works_without_vendor_and_excludes_private_files(self):
+        shutil.rmtree(self.root / 'vendor')
+        for name in ['.env', 'storage/private/cv.pdf', 'tests/receipt.eml', 'service-account.json']:
+            self.private_file(name)
+        release.stage()
+        application = self.output / 'application'
+        manifest = json.loads((self.output / 'manifest.json').read_text())['files']
+        self.assertFalse((application / 'vendor').exists())
+        self.assertFalse((application / '.env').exists())
+        self.assertFalse((application / 'storage').exists())
+        self.assertFalse((application / 'tests').exists())
+        self.assertFalse((application / 'service-account.json').exists())
+        self.assertIn('Public/Assets/app.css', manifest)
+        self.assertEqual((application / 'Public/Assets/app.css').read_bytes(),
+                         (self.root / 'Public/Assets/app.css').read_bytes())
+        self.assertEqual((application / '.htaccess').read_bytes(), (self.root / '.htaccess').read_bytes())
+        self.assertEqual((self.output / 'bootstrap/storage/private/.htaccess').read_text(), 'Require all denied\n')
+
+    def test_source_only_stage_requires_existing_compiled_assets(self):
+        (self.root / 'Public/Assets/app.css').unlink()
+        with self.assertRaisesRegex(ValueError, 'missing Public/Assets/app.css'):
+            release.stage()
 
     def test_unexpected_credential_in_runtime_blocks_packaging(self):
         self.private_file('Public/credential.json', json.dumps({'type': 'service_account', 'private_key': 'fixture'}))

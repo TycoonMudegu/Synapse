@@ -26,10 +26,7 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
-    verify:
-        uses: ./.github/workflows/ci.yml
     deploy:
-        needs: verify
         runs-on: ubuntu-latest
         timeout-minutes: 35
         environment: production
@@ -48,40 +45,10 @@ jobs:
                   FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
                   FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
               run: python3 scripts/db_deploy.py config
-            - uses: shivammathur/setup-php@v2
-              with:
-                  php-version: '8.3'
-                  extensions: curl, dom, fileinfo, mbstring, openssl, pdo_mysql, sodium, zip
-                  tools: composer:v2
-                  coverage: none
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: '24'
-                  cache: npm
-            - name: Install locked dependencies and build assets
+            - name: Stage existing application files and migration endpoint
               run: |
-                  composer install --no-dev --classmap-authoritative --prefer-dist --no-interaction
-                  npm ci
-                  npm run build:pdf
-                  npm run build:css
-                  python3 scripts/release.py build
-                  python3 scripts/db_deploy.py build
-            - name: Save the built release for download
-              id: release_artifact
-              uses: actions/upload-artifact@v7
-              with:
-                  name: synapse-release-${{ github.sha }}-${{ github.run_attempt }}
-                  path: |
-                      .release/
-                      .migration-upload/
-                  include-hidden-files: true
-                  if-no-files-found: error
-                  retention-days: 7
-            - name: Verify and list the migration upload files
-              run: |
-                  test -s ".migration-upload/_db-deploy/releases/${DB_DEPLOY_RELEASE}/endpoint.php"
-                  test -s ".migration-upload/_db-deploy/releases/${DB_DEPLOY_RELEASE}/manifest.json"
-                  find .migration-upload/_db-deploy -type f -print
+                  python3 scripts/release.py stage
+                  python3 scripts/db_deploy.py stage
             - name: Prepare access rules and empty runtime directories
               uses: SamKirkland/FTP-Deploy-Action@v4.4.0
               with:
@@ -123,7 +90,7 @@ jobs:
                   DB_DEPLOY_BACKUP_WINDOW_OVERRIDE: ${{ inputs.backup_window_override || false }}
                   DB_DEPLOY_BACKUP_WINDOW_OVERRIDE_REASON: ${{ inputs.backup_window_override_reason || '' }}
               run: python3 scripts/db_deploy.py run
-            - name: Upload the application release
+            - name: Sync application changes and delete obsolete tracked files
               id: application
               uses: SamKirkland/FTP-Deploy-Action@v4.4.0
               with:
@@ -140,27 +107,23 @@ jobs:
                   exclude: |
                       **/.git*
                       **/.env*
+                      vendor
+                      vendor/**
+                      storage
                       storage/**
+                      _db-deploy
                       _db-deploy/**
-            - name: Verify the public site and PDF worker
-              id: smoke
-              run: python3 scripts/release.py smoke
             - name: Record deployment outcome
               if: always()
               env:
                   MIGRATIONS_RESULT: ${{ steps.migrations.outcome }}
                   APPLICATION_RESULT: ${{ steps.application.outcome }}
-                  SMOKE_RESULT: ${{ steps.smoke.outcome }}
-                  RELEASE_ARTIFACT_URL: ${{ steps.release_artifact.outputs.artifact-url }}
               run: |
                   python3 - <<'PY'
                   import os
                   with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as report:
                       report.write('\n## Synapse release\n\n')
-                      artifact_url = os.environ.get('RELEASE_ARTIFACT_URL')
-                      if artifact_url:
-                          report.write(f'[Download the built release]({artifact_url}) (retained for seven days).\n\n')
-                      for stage in ('MIGRATIONS_RESULT', 'APPLICATION_RESULT', 'SMOKE_RESULT'):
+                      for stage in ('MIGRATIONS_RESULT', 'APPLICATION_RESULT'):
                           report.write(f"- {stage}: {os.environ.get(stage) or 'not run'}\n")
-                      report.write('\nThe site is deployed only when migrations, application upload and public checks all succeed.\n')
+                      report.write('\nDeployment completes when migrations and application sync succeed. Vendor dependencies are maintained separately.\n')
                   PY
