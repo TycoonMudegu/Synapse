@@ -1,6 +1,6 @@
 # Production deployment
 
-Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic page confirmed its filesystem document root as `/home/themude3/domains/jobflow.mystuffs.co.ke/public_html/`. Set `FTP_SERVER_DIR` to the FTP-visible path that maps to this folder. `/` is correct only when the FTP account is confined to this site's web root; verify the uploaded endpoint appears there. Never copy Hummingbird's FTP destination or database credentials.
+Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic page confirmed its filesystem document root as `/home/themude3/domains/jobflow.mystuffs.co.ke/public_html/`. The hosting file manager confirmed that the FTP account's `/` is the hosting home, above `domains/`. The correct FTP-visible destination is `/domains/jobflow.mystuffs.co.ke/public_html/`. The workflow pins this path for all three uploads and rejects other destinations before uploading. Never copy Hummingbird's FTP destination or database credentials.
 
 ## GitHub Actions
 
@@ -8,18 +8,18 @@ Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic
 
 Create the `production` GitHub environment and configure these settings there (repository settings also work when no environment value overrides them):
 
-| Kind     | Name                 | Value                                                                                             |
-| -------- | -------------------- | ------------------------------------------------------------------------------------------------- |
-| Variable | `DB_DEPLOY_BASE_URL` | `https://jobflow.mystuffs.co.ke` (the workflow default)                                           |
-| Variable | `FTP_SERVER_DIR`     | `/` only for an account confined to this site's web root; otherwise its verified FTP-visible path |
-| Variable | `FTP_PROTOCOL`       | `ftps` by default; use the protocol supported by the hosting account                              |
-| Variable | `FTP_PORT`           | `21` by default                                                                                   |
-| Secret   | `FTP_SERVER`         | Synapse hosting FTP hostname                                                                      |
-| Secret   | `FTP_USERNAME`       | FTP account with access to this site's web root                                                   |
-| Secret   | `FTP_PASSWORD`       | FTP password                                                                                      |
-| Secret   | `DB_DEPLOY_SECRET`   | 64 lowercase hex characters, matching the private hosting `.env`                                  |
+| Kind     | Name                 | Value                                                                  |
+| -------- | -------------------- | ---------------------------------------------------------------------- |
+| Variable | `DB_DEPLOY_BASE_URL` | `https://jobflow.mystuffs.co.ke` (the workflow default)                |
+| Workflow | `FTP_SERVER_DIR`     | `/domains/jobflow.mystuffs.co.ke/public_html/`, pinned in the workflow |
+| Variable | `FTP_PROTOCOL`       | `ftps` by default; use the protocol supported by the hosting account   |
+| Variable | `FTP_PORT`           | `21` by default                                                        |
+| Secret   | `FTP_SERVER`         | Synapse hosting FTP hostname                                           |
+| Secret   | `FTP_USERNAME`       | FTP account with access to this site's web root                        |
+| Secret   | `FTP_PASSWORD`       | FTP password                                                           |
+| Secret   | `DB_DEPLOY_SECRET`   | 64 lowercase hex characters, matching the private hosting `.env`       |
 
-The workflow also accepts `FTP_SERVER_DIR`, `FTP_PROTOCOL` and `FTP_PORT` from Secrets when no matching Variable is set.
+The workflow also accepts `FTP_PROTOCOL` and `FTP_PORT` from Secrets when no matching Variable is set. `FTP_SERVER_DIR` is controlled by the workflow; an old Variable or Secret containing `/` no longer overrides it. Remove or correct that obsolete setting to avoid confusion. The validator also rejects `/`, other sites and nested or traversal paths before any upload.
 
 The deployment keys are also listed in `.env.example` and the private local `.env` for setup. The example keeps credential values empty. Actions reads its own configured secrets and variables, so editing a local env file does not update GitHub or hosting. If `DB_DEPLOY_SECRET` already exists in GitHub, reuse that exact value in private `.env` and the hosting `.env`; do not generate a different value for either file. GitHub cannot return the saved secret value. If it is no longer available, generate a replacement privately and update all three locations together.
 
@@ -60,7 +60,9 @@ For manual deployment from an already prepared release, upload `.release/bootstr
 
 The workflow requests `https://jobflow.mystuffs.co.ke/_db-deploy/releases/<commit>/endpoint.php`. If it returns 404, check the hosting file manager for `_db-deploy/releases/<commit>/endpoint.php` under `/home/themude3/domains/jobflow.mystuffs.co.ke/public_html/`. Use the full commit ID from the failed run. A successful FTP upload does not establish that its destination is the folder served by this domain, and the separate `HEAD /.env` denial check does not establish that mapping either.
 
-If the file is missing, inspect the **Upload the authenticated migration package** log and compare its destination with the FTP account's login directory. Set `FTP_SERVER_DIR` to the FTP-visible path that maps to this domain's web root, ending in `/`. Keep `/` only when that account is confined to this exact `public_html` folder. The FTP-visible path may differ from the hosting filesystem path; verify the account's directory layout before changing this setting. Also confirm `DB_DEPLOY_BASE_URL` names the same domain and installation path.
+If the file is missing, inspect the **Upload the authenticated migration package** log. Its destination must begin with `/domains/jobflow.mystuffs.co.ke/public_html/_db-deploy/`. Older runs using `/_db-deploy/` uploaded to the hosting home. Deploy the corrected workflow from a new commit; rerunning an old run uses its old destination settings. Also confirm `DB_DEPLOY_BASE_URL` names the same domain and installation path.
+
+The failed root-level deployments uploaded bootstrap access rules, runtime subdirectories and migration packages to the hosting home. Application upload was skipped. Review any root-level `.htaccess`, `.ftp-synapse-bootstrap.json`, `_db-deploy/` and `storage/` before cleanup; shared or pre-existing files must be preserved. New deployments use the domain folder and do not clean the hosting home.
 
 If the file exists at that exact location, check the host's rewrite, access and PHP rules. The packaged endpoint returns JSON with HTTP 405 for an unauthenticated GET; a 404 means the request is not reaching that handler. Keep the packaged `.htaccess` rules and deployment authentication in place. Rerun the deployment after correcting the mapping or hosting rules. Changing database credentials or enabling `retry_failed` does not resolve a missing endpoint.
 

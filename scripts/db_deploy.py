@@ -18,6 +18,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / '.migration-upload'
 USER_AGENT = 'Synapse-Deploy/1.0'
+PRODUCTION_FTP_ROOT = '/domains/jobflow.mystuffs.co.ke/public_html/'
 RULES = '''Options -Indexes
 Require all denied
 <Files "endpoint.php">
@@ -233,13 +234,16 @@ def settings():
 def configuration():
     settings()
     folder = os.environ.get('FTP_SERVER_DIR', '')
-    if (folder != '/' and not re.fullmatch(r'/[A-Za-z0-9_./-]*/', folder)) or '..' in folder.split('/'):
-        raise ValueError('Set FTP_SERVER_DIR to the exact absolute application folder, ending in /.')
+    if folder != PRODUCTION_FTP_ROOT:
+        raise ValueError('FTP_SERVER_DIR must be ' + PRODUCTION_FTP_ROOT + '; '
+                         'refusing uploads to the hosting root or another directory.')
     if os.environ.get('FTP_PROTOCOL', 'ftps') not in ('ftps', 'ftps-legacy', 'ftp'):
         raise ValueError('FTP_PROTOCOL must be ftps, ftps-legacy or ftp.')
     for name in ('FTP_SERVER', 'FTP_USERNAME', 'FTP_PASSWORD'):
         if not os.environ.get(name):
             raise ValueError('Missing GitHub Actions secret: ' + name)
+    print('Production FTP web root: ' + folder)
+    print('Migration FTP destination: ' + folder + '_db-deploy/')
     print('Production destination, deployment authentication and FTP settings are configured.')
 
 

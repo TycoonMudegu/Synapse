@@ -57,13 +57,22 @@ class DeploymentTests(unittest.TestCase):
                                     'FTP_SERVER': 'ftp.example.test', 'FTP_USERNAME': 'fixture',
                                     'FTP_PASSWORD': 'fixture-password', 'FTP_PROTOCOL': 'ftps'}):
             deploy.configuration()
-            with patch.dict(os.environ, {'FTP_SERVER_DIR': '/'}):
-                deploy.configuration()
             for folder in ['', 'public_html/', '/domains/../public_html/', '/public_html']:
                 with self.subTest(folder=folder), patch.dict(os.environ, {'FTP_SERVER_DIR': folder}):
                     with self.assertRaisesRegex(ValueError, 'FTP_SERVER_DIR'): deploy.configuration()
             with patch.dict(os.environ, {'FTP_PASSWORD': ''}):
                 with self.assertRaisesRegex(ValueError, 'FTP_PASSWORD'): deploy.configuration()
+
+    def test_uploads_refuse_hosting_root_and_other_site_directories(self):
+        with patch.dict(os.environ, {'FTP_SERVER': 'ftp.example.test', 'FTP_USERNAME': 'fixture',
+                                    'FTP_PASSWORD': 'fixture-password', 'FTP_PROTOCOL': 'ftps'}):
+            for folder in ['/', '/domains/', '/public_html/', '/storage/',
+                           '/domains/another.example/public_html/',
+                           '/domains/jobflow.mystuffs.co.ke/public_html/nested/',
+                           '/domains/jobflow.mystuffs.co.ke/public_html/../public_html/']:
+                with self.subTest(folder=folder), patch.dict(os.environ, {'FTP_SERVER_DIR': folder}):
+                    with self.assertRaisesRegex(ValueError, 'FTP_SERVER_DIR'):
+                        deploy.configuration()
 
     def test_signed_post_and_redirects_are_disabled(self):
         class Response:

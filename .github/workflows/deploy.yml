@@ -37,7 +37,8 @@ jobs:
             DB_DEPLOY_RELEASE: ${{ github.sha }}
             DB_DEPLOY_BASE_URL: ${{ vars.DB_DEPLOY_BASE_URL || secrets.DB_DEPLOY_BASE_URL || 'https://jobflow.mystuffs.co.ke' }}
             DB_DEPLOY_SECRET: ${{ secrets.DB_DEPLOY_SECRET }}
-            FTP_SERVER_DIR: ${{ vars.FTP_SERVER_DIR || secrets.FTP_SERVER_DIR }}
+            # The FTP account root is the hosting home, above this site's web root.
+            FTP_SERVER_DIR: /domains/jobflow.mystuffs.co.ke/public_html/
             FTP_PROTOCOL: ${{ vars.FTP_PROTOCOL || secrets.FTP_PROTOCOL || 'ftps' }}
         steps:
             - uses: actions/checkout@v6
