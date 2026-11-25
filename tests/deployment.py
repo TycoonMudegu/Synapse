@@ -177,6 +177,36 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual(call.call_count, 1)
             self.assertEqual(call.call_args.args[2]['action'], 'status')
 
+    def test_missing_endpoint_explains_upload_path_without_exposing_hosting_body(self):
+        for body in [b'<html>private-hosting-details</html>', b'{"error":"private-hosting-details"}']:
+            with self.subTest(body=body), patch.object(deploy.urllib.request, 'build_opener') as opener:
+                opener.return_value.open.side_effect = urllib.error.HTTPError(
+                    'https://example.test/app/endpoint.php', 404, 'Not Found', {}, io.BytesIO(body))
+                with self.assertRaises(RuntimeError) as caught:
+                    deploy.call_endpoint('https://example.test/app/endpoint.php', SECRET,
+                                         {'action': 'status', 'release': RELEASE})
+                message = str(caught.exception)
+                self.assertIn('HTTP 404', message)
+                self.assertIn('/_db-deploy/releases/' + RELEASE + '/endpoint.php', message)
+                self.assertIn('FTP_SERVER_DIR', message)
+                self.assertIn('DB_DEPLOY_BASE_URL', message)
+                self.assertIn('rewrite and access rules', message)
+                self.assertNotIn('private-hosting-details', message)
+                self.assertNotIn(SECRET, message)
+
+    def test_missing_endpoint_stops_before_migrations_and_leaves_summary_unverified(self):
+        summary = self.root / 'summary.md'
+        with patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': str(summary)}), patch.object(deploy.urllib.request, 'build_opener') as opener:
+            opener.return_value.open.side_effect = urllib.error.HTTPError(
+                'https://example.test/app/endpoint.php', 404, 'Not Found', {}, io.BytesIO(b'Not found'))
+            with self.assertRaisesRegex(RuntimeError, 'HTTP 404'):
+                deploy.run()
+            opener.return_value.open.assert_called_once()
+            request = opener.return_value.open.call_args.args[0]
+            self.assertEqual(json.loads(request.data)['action'], 'status')
+        self.assertIn('**NOT VERIFIED', summary.read_text())
+        self.assertIn('| Pending migrations | Unknown |', summary.read_text())
+
     def test_malformed_diagnostics_do_not_hide_failure_or_print_arbitrary_content(self):
         for missing in [None, 'private-password', {}, [None, {}, '<script>private-password</script>']]:
             with self.subTest(missing=missing):

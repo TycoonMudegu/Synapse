@@ -1,6 +1,6 @@
 # Production deployment
 
-Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic page confirmed its filesystem document root as `/home/themude3/domains/jobflow.mystuffs.co.ke/public_html/`. The owner confirmed that the FTP account opens directly in this folder, so `FTP_SERVER_DIR=/`. Never copy Hummingbird's FTP destination or database credentials.
+Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic page confirmed its filesystem document root as `/home/themude3/domains/jobflow.mystuffs.co.ke/public_html/`. Set `FTP_SERVER_DIR` to the FTP-visible path that maps to this folder. `/` is correct only when the FTP account is confined to this site's web root; verify the uploaded endpoint appears there. Never copy Hummingbird's FTP destination or database credentials.
 
 ## GitHub Actions
 
@@ -11,7 +11,7 @@ Create the `production` GitHub environment and configure these settings there (r
 | Kind | Name | Value |
 | --- | --- | --- |
 | Variable | `DB_DEPLOY_BASE_URL` | `https://jobflow.mystuffs.co.ke` (the workflow default) |
-| Variable | `FTP_SERVER_DIR` | `/` for the confirmed account confined to this site's web root |
+| Variable | `FTP_SERVER_DIR` | `/` only for an account confined to this site's web root; otherwise its verified FTP-visible path |
 | Variable | `FTP_PROTOCOL` | `ftps` by default; use the protocol supported by the hosting account |
 | Variable | `FTP_PORT` | `21` by default |
 | Secret | `FTP_SERVER` | Synapse hosting FTP hostname |
@@ -53,6 +53,14 @@ After the first release, register an account and verify sign-in, document upload
 Subsequent releases use the same workflow. SQL migrations are immutable once applied. Add new numbered SQL files and update `database/schema.php`; the workflow preserves existing user records. An interrupted DDL statement stops the deployment for review. The manual **retry_failed** input can reconcile supported additive DDL after inspection; it does not blindly replay uncertain data writes. The emergency backup-window override requires a written reason and only bypasses a correctly configured schedule's time window. It does not create a backup or bypass failed-migration review.
 
 For manual deployment from an already prepared release, upload `.release/bootstrap/`, run the database CLI on hosting, then upload `.release/application/`. Keep `.env` and credentials private and preserve `storage/`. Normal updates should use Actions so the migration and code order is consistent.
+
+### Migration endpoint returns HTTP 404
+
+The workflow requests `https://jobflow.mystuffs.co.ke/_db-deploy/releases/<commit>/endpoint.php`. If it returns 404, check the hosting file manager for `_db-deploy/releases/<commit>/endpoint.php` under `/home/themude3/domains/jobflow.mystuffs.co.ke/public_html/`. Use the full commit ID from the failed run. A successful FTP upload does not establish that its destination is the folder served by this domain, and the separate `HEAD /.env` denial check does not establish that mapping either.
+
+If the file is missing, inspect the **Upload the authenticated migration package** log and compare its destination with the FTP account's login directory. Set `FTP_SERVER_DIR` to the FTP-visible path that maps to this domain's web root, ending in `/`. Keep `/` only when that account is confined to this exact `public_html` folder. The FTP-visible path may differ from the hosting filesystem path; verify the account's directory layout before changing this setting. Also confirm `DB_DEPLOY_BASE_URL` names the same domain and installation path.
+
+If the file exists at that exact location, check the host's rewrite, access and PHP rules. The packaged endpoint returns JSON with HTTP 405 for an unauthenticated GET; a 404 means the request is not reaching that handler. Keep the packaged `.htaccess` rules and deployment authentication in place. Rerun the deployment after correcting the mapping or hosting rules. Changing database credentials or enabling `retry_failed` does not resolve a missing endpoint.
 
 ## Assets, worker and optional browser collection
 

@@ -122,6 +122,17 @@ def call_endpoint(url, secret, payload):
             code = error.code
             reject_hosting_challenge(code, error.headers, 'Migration endpoint')
             raw = error.read(65536)
+    if code == 404:
+        release = payload.get('release', '')
+        commit = release if isinstance(release, str) and re.fullmatch(r'[a-f0-9]{40}', release) else '<commit>'
+        endpoint = '/_db-deploy/releases/' + commit + '/endpoint.php'
+        raise RuntimeError('Migration endpoint returned HTTP 404: ' + endpoint + '. '
+                           'The uploaded endpoint is not reachable at DB_DEPLOY_BASE_URL. '
+                           'Check that this file exists inside the domain\'s document root, '
+                           'then confirm FTP_SERVER_DIR maps to that same web root. '
+                           'If the file exists there, check the hosting rewrite and access rules. '
+                           'HEAD /.env returning 403 or 404 does not prove the FTP destination is correct. '
+                           'Migration progress could not be verified; application upload stopped.')
     try:
         result = json.loads(raw)
     except (ValueError, UnicodeError):
