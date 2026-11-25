@@ -8,22 +8,24 @@ Synapse is prepared for `https://jobflow.mystuffs.co.ke`. The hosting diagnostic
 
 Create the `production` GitHub environment and configure these settings there (repository settings also work when no environment value overrides them):
 
-| Kind | Name | Value |
-| --- | --- | --- |
-| Variable | `DB_DEPLOY_BASE_URL` | `https://jobflow.mystuffs.co.ke` (the workflow default) |
-| Variable | `FTP_SERVER_DIR` | `/` only for an account confined to this site's web root; otherwise its verified FTP-visible path |
-| Variable | `FTP_PROTOCOL` | `ftps` by default; use the protocol supported by the hosting account |
-| Variable | `FTP_PORT` | `21` by default |
-| Secret | `FTP_SERVER` | Synapse hosting FTP hostname |
-| Secret | `FTP_USERNAME` | FTP account with access to this site's web root |
-| Secret | `FTP_PASSWORD` | FTP password |
-| Secret | `DB_DEPLOY_SECRET` | 64 lowercase hex characters, matching the private hosting `.env` |
+| Kind     | Name                 | Value                                                                                             |
+| -------- | -------------------- | ------------------------------------------------------------------------------------------------- |
+| Variable | `DB_DEPLOY_BASE_URL` | `https://jobflow.mystuffs.co.ke` (the workflow default)                                           |
+| Variable | `FTP_SERVER_DIR`     | `/` only for an account confined to this site's web root; otherwise its verified FTP-visible path |
+| Variable | `FTP_PROTOCOL`       | `ftps` by default; use the protocol supported by the hosting account                              |
+| Variable | `FTP_PORT`           | `21` by default                                                                                   |
+| Secret   | `FTP_SERVER`         | Synapse hosting FTP hostname                                                                      |
+| Secret   | `FTP_USERNAME`       | FTP account with access to this site's web root                                                   |
+| Secret   | `FTP_PASSWORD`       | FTP password                                                                                      |
+| Secret   | `DB_DEPLOY_SECRET`   | 64 lowercase hex characters, matching the private hosting `.env`                                  |
 
 The workflow also accepts `FTP_SERVER_DIR`, `FTP_PROTOCOL` and `FTP_PORT` from Secrets when no matching Variable is set.
 
 The deployment keys are also listed in `.env.example` and the private local `.env` for setup. The example keeps credential values empty. Actions reads its own configured secrets and variables, so editing a local env file does not update GitHub or hosting. If `DB_DEPLOY_SECRET` already exists in GitHub, reuse that exact value in private `.env` and the hosting `.env`; do not generate a different value for either file. GitHub cannot return the saved secret value. If it is no longer available, generate a replacement privately and update all three locations together.
 
 The workflow installs locked Composer dependencies, prepares PDF.js and Tailwind assets, and builds two upload packages. The application package uses an explicit list of runtime paths; it excludes local `.env`, Google credential JSON files, private storage, email receipts, tests, Node modules and Git metadata. The migration package contains only the SQL migration files and its small authenticated PHP runtime. Both packages are assembled locally under ignored directories, `.release/` and `.migration-upload/`.
+
+After building, the workflow saves `synapse-release-<commit>-<attempt>` in the run's **Artifacts** section for seven days and links it from the deployment summary. It contains only `.release/` and `.migration-upload/`, including their required `.htaccess` files. The download remains available if a later migration or FTP step fails. Earlier runs did not save a downloadable artifact; a successful build step alone did not create one. The migration package's file list and detailed FTP directory/upload operations are also recorded before the migration request.
 
 The first upload installs access rules and empty private runtime directories. A read-only HTTPS `HEAD /.env` check must return access denied. A release-specific migration endpoint then verifies authentication, the package manifest and every file hash before connecting to the database. SQL changes run before the application FTP upload. The final checks request the login page, compiled CSS and PDF worker with the expected JavaScript MIME type. Uploaded user files and the hosting environment are kept outside the application upload's managed file set.
 

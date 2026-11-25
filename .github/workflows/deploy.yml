@@ -65,6 +65,22 @@ jobs:
                   npm run build:css
                   python3 scripts/release.py build
                   python3 scripts/db_deploy.py build
+            - name: Save the built release for download
+              id: release_artifact
+              uses: actions/upload-artifact@v7
+              with:
+                  name: synapse-release-${{ github.sha }}-${{ github.run_attempt }}
+                  path: |
+                      .release/
+                      .migration-upload/
+                  include-hidden-files: true
+                  if-no-files-found: error
+                  retention-days: 7
+            - name: Verify and list the migration upload files
+              run: |
+                  test -s ".migration-upload/_db-deploy/releases/${DB_DEPLOY_RELEASE}/endpoint.php"
+                  test -s ".migration-upload/_db-deploy/releases/${DB_DEPLOY_RELEASE}/manifest.json"
+                  find .migration-upload/_db-deploy -type f -print
             - name: Prepare access rules and empty runtime directories
               uses: SamKirkland/FTP-Deploy-Action@v4.4.0
               with:
@@ -97,6 +113,7 @@ jobs:
                   server-dir: ${{ env.FTP_SERVER_DIR }}_db-deploy/
                   state-name: .ftp-migration-${{ github.sha }}.json
                   dangerous-clean-slate: false
+                  log-level: verbose
             - name: Apply migrations and verify the release schema
               id: migrations
               env:
@@ -133,11 +150,15 @@ jobs:
                   MIGRATIONS_RESULT: ${{ steps.migrations.outcome }}
                   APPLICATION_RESULT: ${{ steps.application.outcome }}
                   SMOKE_RESULT: ${{ steps.smoke.outcome }}
+                  RELEASE_ARTIFACT_URL: ${{ steps.release_artifact.outputs.artifact-url }}
               run: |
                   python3 - <<'PY'
                   import os
                   with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as report:
                       report.write('\n## Synapse release\n\n')
+                      artifact_url = os.environ.get('RELEASE_ARTIFACT_URL')
+                      if artifact_url:
+                          report.write(f'[Download the built release]({artifact_url}) (retained for seven days).\n\n')
                       for stage in ('MIGRATIONS_RESULT', 'APPLICATION_RESULT', 'SMOKE_RESULT'):
                           report.write(f"- {stage}: {os.environ.get(stage) or 'not run'}\n")
                       report.write('\nThe site is deployed only when migrations, application upload and public checks all succeed.\n')
