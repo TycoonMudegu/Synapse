@@ -240,6 +240,10 @@ try {
     ).toBeVisible();
     await ordinary.goto(`${base}/settings?tab=discovery`);
     await expect(ordinary.getByText('Advanced discovery settings', { exact: true })).toHaveCount(0);
+    await ordinary.getByText('More search preferences', { exact: true }).click();
+    await expect(ordinary.getByLabel('Minimum advertised salary', { exact: true })).toBeVisible();
+    await expect(ordinary.getByLabel('Work arrangement', { exact: true })).toBeVisible();
+    await expect(ordinary.getByLabel('SerpApi key', { exact: true })).toHaveCount(0);
     console.log(
         'PASS discovery saves newly collected jobs immediately without a queue worker or personal scraper setup',
     );

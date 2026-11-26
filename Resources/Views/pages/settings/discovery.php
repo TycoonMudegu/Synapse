@@ -13,4 +13,4 @@ $sharedDiscovery = \App\Services\Discovery\CatalogueDiscovery::enabled();
     <?php endif; ?>
     <button class="btn btn-primary self-start" type="submit">Save my search</button>
 </form></section>
-<?php if (!$sharedDiscovery): ?><details class="panel mt-6" x-data="disclosure" x-on:toggle="save" data-persist-disclosure="discovery"><summary class="panel-body">Advanced discovery settings</summary><?php require BASE_PATH . '/Resources/Views/pages/settings/discovery-advanced.php'; ?></details><?php endif; ?>
+<details class="panel mt-6" x-data="disclosure" x-on:toggle="save" data-persist-disclosure="discovery"><summary class="panel-body"><?= $sharedDiscovery ? 'More search preferences' : 'Advanced discovery settings'; ?></summary><?php require BASE_PATH . '/Resources/Views/pages/settings/' . ($sharedDiscovery ? 'discovery-preferences.php' : 'discovery-advanced.php'); ?></details>
