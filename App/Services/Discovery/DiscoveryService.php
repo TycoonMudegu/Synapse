@@ -43,6 +43,9 @@ final class DiscoveryService
 
     public function run(int $userId): int
     {
+        if (\App\Core\Env::bool('COLLECTOR_ENABLED')) {
+            return (new CatalogueDiscovery())->run($userId);
+        }
         $settingsRepo = new SettingsRepository();
         $settings = $settingsRepo->get($userId, 'discovery');
         $automation = $settingsRepo->get($userId, 'automation');

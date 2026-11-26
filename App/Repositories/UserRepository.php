@@ -8,7 +8,10 @@ final class UserRepository extends Repository
 {
     public function byId(int $id): ?array
     {
-        return $this->one('SELECT id, name, email, created_at, onboarding_step, onboarded_at FROM users WHERE id = ?', [$id]);
+        return $this->one(
+            'SELECT id, name, email, created_at, onboarding_step, onboarded_at, is_admin FROM users WHERE id = ?',
+            [$id],
+        );
     }
 
     public function byEmail(string $email): ?array

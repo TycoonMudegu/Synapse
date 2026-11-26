@@ -7,6 +7,10 @@ DirectoryIndex index.php
 
 RewriteEngine On
 
+# Preserve the collector's bearer credential when Apache forwards to PHP/FastCGI.
+RewriteCond %{HTTP:Authorization} .
+RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # Only the authenticated, release-specific deployment endpoint is executable here.
 RewriteRule ^_db-deploy/releases/[a-f0-9]{40}/endpoint\.php$ - [L]
 

@@ -8,7 +8,7 @@ use App\Core\HttpException;
 
 final class JobRepository extends Repository
 {
-    private const SELECT = 'SELECT j.*, m.score, m.eligibility, m.result_json, s.name AS source_name FROM job_listings j LEFT JOIN match_results m ON m.job_id = j.id AND m.user_id = j.user_id LEFT JOIN job_sources s ON s.id = j.source_id AND s.user_id = j.user_id';
+    private const SELECT = "SELECT j.*, m.score, m.eligibility, m.result_json, COALESCE(s.name, cs.name, CASE WHEN j.catalogue_job_id IS NOT NULL THEN 'Synapse catalogue' END) AS source_name FROM job_listings j LEFT JOIN match_results m ON m.job_id = j.id AND m.user_id = j.user_id LEFT JOIN job_sources s ON s.id = j.source_id AND s.user_id = j.user_id LEFT JOIN shared_jobs cj ON cj.id = j.catalogue_job_id LEFT JOIN collector_sources cs ON cs.id = cj.source_id";
 
     public function list(
         int $userId,
@@ -269,7 +269,7 @@ final class JobRepository extends Repository
     public function discoveredToday(int $userId): int
     {
         return (int) $this->query(
-            'SELECT COUNT(*) FROM job_listings WHERE user_id = ? AND source_id IS NOT NULL AND created_at >= CURDATE()',
+            'SELECT COUNT(*) FROM job_listings WHERE user_id = ? AND (source_id IS NOT NULL OR catalogue_job_id IS NOT NULL) AND created_at >= CURDATE()',
             [$userId],
         )->fetchColumn();
     }

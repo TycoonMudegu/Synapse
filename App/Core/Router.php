@@ -82,7 +82,16 @@ final class Router
             }
             if (
                 !in_array($method, ['GET', 'HEAD', 'OPTIONS'], true) &&
-                $request->path() !== '/api/billing/mpesa/callback'
+                !in_array(
+                    $request->path(),
+                    [
+                        '/api/billing/mpesa/callback',
+                        '/api/collector/claim',
+                        '/api/collector/batch',
+                        '/api/collector/finish',
+                    ],
+                    true,
+                )
             ) {
                 Csrf::validate($request->string('_csrf', $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
             }

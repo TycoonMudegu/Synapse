@@ -3,6 +3,7 @@ $membership = (new \App\Repositories\AccountRepository())->membership(\App\Servi
 $navigation = [
     ['dashboard', '/', 'layout-dashboard', 'Dashboard'],
     ['discover', '/discover', 'compass', 'Discover jobs'],
+    ['catalogue', '/catalogue', 'library', 'Job catalogue'],
     ['jobs', '/jobs', 'briefcase-business', 'My jobs'],
     ['profile', '/profile', 'contact-round', 'My CV'],
     ['applications', '/applications', 'send', 'Applications'],
@@ -11,7 +12,11 @@ $navigation = [
     ['activity', '/activity', 'activity', 'Activity'],
     ['settings', '/settings', 'settings-2', 'Settings'],
     ['plans', '/plans', 'star', 'Plans & billing'],
-]; ?>
+];
+if (\App\Services\Security\Admin::allowed($currentUser)) {
+    $navigation[] = ['admin', '/admin', 'shield-check', 'Administration'];
+}
+?>
 <!doctype html>
 <html lang="en-GB">
     <head>

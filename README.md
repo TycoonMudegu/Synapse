@@ -39,15 +39,15 @@ npm run watch:css
 
 ## Plans and payments
 
-| Feature | Free | Plus |
-| --- | --- | --- |
-| Browse, search, filter and save jobs | Yes | Yes |
-| Manual application tracking and document uploads | Yes | Yes |
-| Initial CV text/structure check | Yes | Yes |
-| AI with a personal provider key | Yes; provider bills separately | Yes |
-| Further CV checks, AI CV improvements and matching | | Yes |
-| Built-in Gemini | | Yes, with a usage cap |
-| Scheduled discovery, application preparation and email submission | | Yes |
+| Feature                                                           | Free                           | Plus                  |
+| ----------------------------------------------------------------- | ------------------------------ | --------------------- |
+| Browse, search, filter and save jobs                              | Yes                            | Yes                   |
+| Manual application tracking and document uploads                  | Yes                            | Yes                   |
+| Initial CV text/structure check                                   | Yes                            | Yes                   |
+| AI with a personal provider key                                   | Yes; provider bills separately | Yes                   |
+| Further CV checks, AI CV improvements and matching                |                                | Yes                   |
+| Built-in Gemini                                                   |                                | Yes, with a usage cap |
+| Scheduled discovery, application preparation and email submission |                                | Yes                   |
 
 Plus costs **KSh 200 for one calendar month** or **KSh 1,500 once for lifetime access to the service**. Monthly renewals are manual M-Pesa payments, not automatic debits. Entitlements are checked on server requests, AI calls and background tasks; an expired monthly subscription loses paid access.
 
@@ -128,6 +128,8 @@ php scripts/configure-site.php
 RSS/public collectors need no AI key. Google Jobs and Indeed use the existing encrypted SerpApi connection. Fuzu requires Playwright Chromium, its system libraries, and an available display where needed. Source failures are reported without invented vacancies. See [integration details](docs/integrations.md).
 
 ## Background work
+
+The new administration area at `/admin` manages a shared job catalogue, collection sources and manual collection runs. The collector is maintained independently in `../Synapse-job-collector` for daily Cloud Run Job execution at 7 AM EAT. Apply migration `012_job_collector.sql` and grant the owner's existing account with `php scripts/admin.php grant --email=owner@example.com`. Cloud collection stays unavailable until its private configuration is supplied. See [collector setup, cost limits and verification](docs/job-collector.md).
 
 Automatic mode emails strong eligible matches that require a manual application to the **account's registration email**. The match must meet the account's Automatic threshold (80% by default); closed, archived, uncertain, ineligible and already submitted vacancies are excluded. The message contains the employer link, match score, deadline and an authenticated workspace link to any prepared CV/cover letter. Documents remain private. An alert never marks a job submitted or uses a daily application slot. The scheduler continues queuing approved email applications in descending match order, subject to the existing review and send rules.
 
