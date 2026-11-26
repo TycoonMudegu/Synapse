@@ -41,6 +41,8 @@ Shared discovery is the default. Search now applies role/location/salary/expiry 
 
 The application deploy workflow preserves the existing hosting environment. If the Synapse GitHub repository has `COLLECTOR_TOKEN` as a secret and `COLLECTOR_PROJECT`, `COLLECTOR_REGION`, `COLLECTOR_JOB` as variables, it configures only those collector fields and shared discovery through verified FTPS, then checks the authenticated status endpoint. With no repository token supplied, collector configuration stays under the separate deployment's control. Environment files are never published as build artifacts or printed in logs.
 
+For the existing migration guard, set the repository variable `DB_DEPLOY_BACKUP_UTC` to the actual hosting database backup time converted to UTC (`HH:MM`). The workflow applies that single field before evaluating pending migrations. An unset variable preserves the hosting value; missing or invalid backup policy and out-of-window migration checks continue to block application upload. A configured schedule does not prove that the hosting provider completed a backup.
+
 Integration endpoints, relative to the final HTTPS Synapse application root:
 
 - `POST /api/collector/claim`: claim an existing manual run or the idempotent daily run.
