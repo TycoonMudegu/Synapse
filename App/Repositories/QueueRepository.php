@@ -164,7 +164,7 @@ final class QueueRepository extends Repository
 
     public function users(): array
     {
-        return $this->rows('SELECT id FROM users ORDER BY id');
+        return $this->rows('SELECT id FROM users WHERE is_admin = 0 ORDER BY id');
     }
 
     public function latestRun(int $userId, string $type): ?array

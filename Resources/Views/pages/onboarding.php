@@ -1,6 +1,7 @@
 <?php
 $stepNames = ['Your search', 'Your documents', 'Your CV check', 'Your AI', 'Your next move'];
 $selectedSources = json_decode($preferences['source_keys'] ?? '[]', true) ?: [];
+$sharedDiscovery = \App\Services\Discovery\CatalogueDiscovery::enabled();
 ?>
 <div class="setup-intro"><span class="eyebrow">LET’S MAKE THIS YOURS</span><p>Hi <?= e(explode(' ', $currentUser['name'])[0]); ?>. A few small steps, then you’re in.</p></div>
 <nav class="setup-steps" aria-label="Setup progress">
@@ -14,9 +15,9 @@ $selectedSources = json_decode($preferences['source_keys'] ?? '[]', true) ?: [];
         <?= csrf_field(); ?><input type="hidden" name="stage" value="preferences"><div class="form-error" role="alert" hidden></div>
         <div class="setup-preferences-grid"><div class="setup-preference-fields"><div class="form-grid"><div class="field"><label for="field-key">Your job field</label><select id="field-key" name="field_key" x-model="field"><?php foreach ($fields as $key => $definition): ?><option value="<?= e($key); ?>" <?= $preferences['field_key'] === $key ? 'selected' : ''; ?>><?= e($definition[0]); ?></option><?php endforeach; ?></select></div><div class="field"><label for="location">Where would you like to work?</label><input id="location" name="location" value="<?= e($preferences['location']); ?>" placeholder="Kenya, Nairobi, remote…" maxlength="200" required></div></div>
         <div class="field"><label for="role-keywords">Preferred job titles <span class="optional">(optional)</span></label><input id="role-keywords" name="role_keywords" value="<?= e($preferences['role_keywords']); ?>" placeholder="e.g. PHP developer, IT support" maxlength="500"><small>Separate titles with commas. You can refine this later.</small></div>
-        </div><div class="setup-source-choices"><h2 class="setup-section-title">Where should we look?</h2><p class="setup-note">These are the sites currently connected for your field. You can choose more than one.</p>
+        </div><div class="setup-source-choices"><?php if ($sharedDiscovery): ?><h2 class="setup-section-title">Fresh jobs, collected for you</h2><p class="setup-note">Synapse collects vacancies daily at 7:00 AM East Africa Time. Your field, preferred roles and location help us find relevant opportunities.</p><?php else: ?><h2 class="setup-section-title">Where should we look?</h2><p class="setup-note">These are the sites currently connected for your field. You can choose more than one.</p>
         <div class="source-options"><?php foreach ($sources as $key => $source): ?><label class="choice-card" x-bind:hidden="!siteAllowed($el)" data-source-field="<?= $key === 'myjobmag' ? 'all' : 'technology'; ?>"><input type="checkbox" name="sources[]" x-bind:disabled="!siteAllowed($el)" x-effect="syncSource($el)" value="<?= e($key); ?>" <?= in_array($key, $selectedSources, true) ? 'checked' : ''; ?>><span><strong><?= e($source['name']); ?></strong><small><?= $key === 'myjobmag' ? 'Jobs across career fields' : 'Technology and IT vacancies'; ?></small></span><?= icon('briefcase-business'); ?></label><?php endforeach; ?></div>
-        <?php if (!$sources): ?><p class="soft-note">Job sites are being connected. You can continue and add jobs yourself.</p><?php endif; ?></div></div>
+        <?php if (!$sources): ?><p class="soft-note">Job sites are being connected. You can continue and add jobs yourself.</p><?php endif; ?><?php endif; ?></div></div>
         
     </form>
 <?php elseif ($step === 2): ?>

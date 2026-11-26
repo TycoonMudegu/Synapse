@@ -13,6 +13,34 @@ use App\Repositories\CollectorRepository;
 /** Server-to-server endpoints: bearer authentication precedes any body parsing. */
 final class CollectorController
 {
+    public function status(Request $request): void
+    {
+        self::authenticate(
+            $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? ''),
+        );
+        $repository = new CollectorRepository();
+        Response::json([
+            'ok' => true,
+            'catalogue_enabled' => \App\Services\Discovery\CatalogueDiscovery::enabled(),
+            'catalogue' => (new \App\Repositories\CatalogueRepository())->counts(),
+            'sources' => array_map(
+                static fn(array $source): array => array_intersect_key(
+                    $source,
+                    array_flip([
+                        'source_key',
+                        'name',
+                        'enabled',
+                        'health',
+                        'last_error',
+                        'last_success_at',
+                        'max_jobs',
+                    ]),
+                ),
+                $repository->sources(),
+            ),
+        ]);
+    }
+
     public static function authenticate(string $authorization): void
     {
         $token = Env::get('COLLECTOR_TOKEN');

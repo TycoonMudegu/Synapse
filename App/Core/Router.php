@@ -6,6 +6,7 @@ namespace App\Core;
 
 use App\Http\Request;
 use App\Http\Response;
+use App\Services\Security\Admin;
 use App\Services\Security\Auth;
 use App\Services\Security\Csrf;
 
@@ -30,15 +31,36 @@ final class Router
             if ($verb !== $method || !preg_match($pattern, $request->path(), $matches)) {
                 continue;
             }
-            if ($private && !Auth::user()) {
+            $user = $private ? Auth::user() : null;
+            if ($private && !$user) {
                 if ($request->wantsJson()) {
                     throw new HttpException('Please sign in to continue.', 401);
                 }
                 Response::redirect('/login');
             }
+            $isAdmin = $private && Admin::allowed($user);
+            if (
+                $isAdmin &&
+                $method === 'GET' &&
+                !preg_match('#^/admin(?:/|$)#', $request->path())
+            ) {
+                Response::redirect('/admin');
+            }
+            if (
+                $isAdmin &&
+                $method !== 'GET' &&
+                $request->path() !== '/logout' &&
+                !preg_match('#^/api/admin(?:/|$)#', $request->path())
+            ) {
+                throw new HttpException(
+                    'Use the administrator portal to manage jobs and collection.',
+                    403,
+                );
+            }
             if (
                 $private &&
-                empty(Auth::user()['onboarded_at']) &&
+                !$isAdmin &&
+                empty($user['onboarded_at']) &&
                 !in_array(
                     $request->path(),
                     [

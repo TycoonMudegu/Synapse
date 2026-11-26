@@ -30,27 +30,40 @@ final class AdminController
                 : 'jobs';
         $query = Validator::text($_GET['q'] ?? '', 'search', 150);
         $editSource = isset($_GET['source']) ? $collector->source((int) $_GET['source']) : null;
-        View::render('pages/admin', [
-            'title' => 'Administration',
-            'active' => 'admin',
-            'tab' => $tab,
-            'jobs' => (new CatalogueRepository())->list($query, true, (int) ($_GET['page'] ?? 1)),
-            'counts' => (new CatalogueRepository())->counts(),
-            'sources' => $collector->sources(),
-            'runs' => $collector->runs(),
-            'editingSource' => $editSource,
-            'collectorConfigured' => (new CloudRunCollector())->configured(),
-        ]);
+        View::render(
+            'pages/admin',
+            [
+                'title' => 'Administration',
+                'active' => 'admin',
+                'tab' => $tab,
+                'adminSection' => $tab,
+                'jobs' => (new CatalogueRepository())->list(
+                    $query,
+                    true,
+                    (int) ($_GET['page'] ?? 1),
+                ),
+                'counts' => (new CatalogueRepository())->counts(),
+                'sources' => $collector->sources(),
+                'runs' => $collector->runs(),
+                'editingSource' => $editSource,
+                'collectorConfigured' => (new CloudRunCollector())->configured(),
+            ],
+            'admin',
+        );
     }
 
     public function editor(Request $request, ?int $id = null): void
     {
         Admin::require();
-        View::render('pages/admin-job', [
-            'title' => $id !== null ? 'Edit catalogue job' : 'Add catalogue job',
-            'active' => 'admin',
-            'entry' => $id !== null ? (new CatalogueRepository())->get($id) : null,
-        ]);
+        View::render(
+            'pages/admin-job',
+            [
+                'title' => $id !== null ? 'Edit catalogue job' : 'Add catalogue job',
+                'active' => 'admin',
+                'entry' => $id !== null ? (new CatalogueRepository())->get($id) : null,
+            ],
+            'admin',
+        );
     }
 
     public function saveJob(Request $request, ?int $id = null): void

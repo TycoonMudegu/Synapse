@@ -252,6 +252,36 @@ try {
         'central discovery applies user filters without contacting sources',
     );
 
+    $needle = 'oldmatch' . $tag;
+    Database::transaction(function () use ($catalogue, $job, $tag, $needle, &$jobIds): void {
+        for ($index = 0; $index < 605; $index++) {
+            $candidate = (new JobService())->normalise([
+                ...$job,
+                'title' => $index === 0 ? $needle : 'Unrelated vacancy ' . $index,
+                'description' => 'Isolated discovery pagination fixture.',
+                'original_url' => 'https://example.com/discovery/' . $tag . '/' . $index,
+            ]);
+            $jobIds[] = $catalogue->upsert($candidate, null, true)['id'];
+        }
+    });
+    $settings->save($other, 'discovery', ['keywords' => $needle, 'locations' => 'Kenya']);
+    verify(
+        (new CatalogueDiscovery())->run($other) === 1 &&
+            (new CatalogueDiscovery())->run($other) === 0,
+        'discovery reaches matches beyond six hundred listings and skips already saved jobs',
+    );
+    verify(
+        !in_array(
+            $owner,
+            array_map(
+                static fn(array $user): int => (int) $user['id'],
+                (new App\Repositories\QueueRepository())->users(),
+            ),
+            true,
+        ),
+        'scheduled client automation excludes administrator accounts',
+    );
+
     putenv('COLLECTOR_MAX_DAILY_RUNS=1');
     refuses(fn() => $collector->request($owner, null), 429);
     putenv('COLLECTOR_MAX_DAILY_RUNS=20');

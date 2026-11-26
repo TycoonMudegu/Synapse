@@ -48,6 +48,32 @@ final class CatalogueRepository extends Repository
         );
     }
 
+    /** Keyset pagination excludes already-saved vacancies before the search allowance is spent. */
+    public function discoveryPage(int $userId, ?int $before): array
+    {
+        $parameters = [$userId];
+        $cursor = '';
+        if ($before !== null) {
+            $cursor = ' AND j.id < ?';
+            $parameters[] = $before;
+        }
+        $rows = $this->rows(
+            'SELECT j.* FROM shared_jobs j WHERE j.published = 1 AND ' .
+                "(JSON_UNQUOTE(JSON_EXTRACT(j.job_json, '$.deadline')) IS NULL OR JSON_UNQUOTE(JSON_EXTRACT(j.job_json, '$.deadline')) = 'null' OR JSON_UNQUOTE(JSON_EXTRACT(j.job_json, '$.deadline')) >= CURDATE()) " .
+                'AND NOT EXISTS (SELECT 1 FROM job_listings saved WHERE saved.user_id = ? AND (saved.catalogue_job_id = j.id OR saved.fingerprint = j.fingerprint OR saved.canonical_hash = j.canonical_hash))' .
+                $cursor .
+                ' ORDER BY j.id DESC LIMIT 100',
+            $parameters,
+        );
+        return array_map(
+            static fn(array $row): array => [
+                ...$row,
+                'job' => json_decode($row['job_json'], true, 64, JSON_THROW_ON_ERROR),
+            ],
+            $rows,
+        );
+    }
+
     /** The caller holds the collector/admin transaction. Publication and editorial overrides survive refreshes. */
     public function upsert(
         array $job,

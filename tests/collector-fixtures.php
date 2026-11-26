@@ -17,14 +17,16 @@ if (($argv[1] ?? '') === 'setup') {
     ob_end_clean();
     $tag = bin2hex(random_bytes(7));
     $fixture = ['tag' => $tag, 'password' => bin2hex(random_bytes(20)), 'accounts' => []];
-    foreach (['admin', 'user'] as $role) {
+    foreach (['admin', 'user', 'new_user'] as $role) {
         $email = 'collector-browser-' . $role . '-' . $tag . '@example.test';
         $id = (new UserRepository())->create(
             'Collector browser fixture',
             $email,
             $fixture['password'],
         );
-        (new AccountRepository())->complete($id);
+        if ($role === 'user') {
+            (new AccountRepository())->complete($id);
+        }
         if ($role === 'admin') {
             Database::connection()
                 ->prepare('UPDATE users SET is_admin = 1 WHERE id = ?')
@@ -48,6 +50,17 @@ if (($argv[1] ?? '') === 'setup') {
         $fixture['source_id'],
     );
     echo json_encode($fixture, JSON_THROW_ON_ERROR);
+} elseif (in_array($argv[1] ?? '', ['grant', 'revoke'], true)) {
+    $tag = $argv[2] ?? '';
+    if (!preg_match('/^[a-f0-9]{14}$/D', $tag)) {
+        throw new RuntimeException('Invalid browser fixture identity.');
+    }
+    Database::connection()
+        ->prepare('UPDATE users SET is_admin = ? WHERE email = ?')
+        ->execute([
+            (int) ($argv[1] === 'grant'),
+            'collector-browser-new_user-' . $tag . '@example.test',
+        ]);
 } elseif (($argv[1] ?? '') === 'cleanup') {
     $tag = $argv[2] ?? '';
     if (!preg_match('/^[a-f0-9]{14}$/D', $tag)) {

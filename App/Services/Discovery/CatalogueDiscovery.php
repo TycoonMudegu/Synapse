@@ -14,7 +14,26 @@ use App\Services\JobService;
 /** Central collection mode: user discovery searches stored vacancies without visiting job sites. */
 final class CatalogueDiscovery
 {
+    public static function enabled(): bool
+    {
+        return \App\Core\Env::bool('COLLECTOR_ENABLED', true);
+    }
+
     public function run(int $userId): int
+    {
+        $queue = new QueueRepository();
+        $lock = 'synapse:discovery:' . $userId;
+        if (!$queue->lock($lock)) {
+            throw new HttpException('Your job search is already running.', 409);
+        }
+        try {
+            return $this->search($userId);
+        } finally {
+            $queue->unlock($lock);
+        }
+    }
+
+    private function search(int $userId): int
     {
         $settings = new SettingsRepository();
         if ($settings->get($userId, 'automation')['paused']) {
@@ -34,8 +53,9 @@ final class CatalogueDiscovery
         $found = 0;
         try {
             $catalogue = new CatalogueRepository();
-            for ($page = 1; $page <= 20 && $found < $limit; $page++) {
-                $entries = $catalogue->list('', false, $page);
+            $before = null;
+            while ($found < $limit) {
+                $entries = $catalogue->discoveryPage($userId, $before);
                 foreach ($entries as $entry) {
                     if (
                         !(new DiscoveryService())->matches($entry['job'], $preferences) ||
@@ -52,9 +72,10 @@ final class CatalogueDiscovery
                         break;
                     }
                 }
-                if (count($entries) < 30) {
+                if (count($entries) < 100) {
                     break;
                 }
+                $before = (int) $entries[array_key_last($entries)]['id'];
             }
             $queue->endRun($run, 'completed', $found);
             return $found;

@@ -113,6 +113,17 @@ jobs:
                       storage/**
                       _db-deploy
                       _db-deploy/**
+            - name: Configure and verify shared job collection
+              env:
+                  FTP_SERVER: ${{ secrets.FTP_SERVER }}
+                  FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+                  FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+                  FTP_PORT: ${{ vars.FTP_PORT || secrets.FTP_PORT || '21' }}
+                  COLLECTOR_PROJECT: ${{ vars.COLLECTOR_PROJECT }}
+                  COLLECTOR_REGION: ${{ vars.COLLECTOR_REGION }}
+                  COLLECTOR_JOB: ${{ vars.COLLECTOR_JOB }}
+                  COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+              run: python3 scripts/configure_collector.py
             - name: Record deployment outcome
               if: always()
               env:

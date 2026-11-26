@@ -18,11 +18,21 @@ final class AutomationController
         if ((new SettingsRepository())->get(Auth::id(), 'automation')['paused']) {
             throw new HttpException('Resume automation before starting a search.');
         }
+        if (\App\Services\Discovery\CatalogueDiscovery::enabled()) {
+            $found = (new \App\Services\Discovery\CatalogueDiscovery())->run(Auth::id());
+            Response::json([
+                'ok' => true,
+                'found' => $found,
+                'message' => $found . ' new opportunities saved from the catalogue.',
+                'reload' => true,
+            ]);
+        }
         $task = (new QueueRepository())->enqueue(Auth::id(), 'discovery');
         Response::json([
             'ok' => true,
             'task_id' => $task,
-            'message' => 'Your job search is queued. New opportunities will appear here when it finishes.',
+            'message' =>
+                'Your job search is queued. New opportunities will appear here when it finishes.',
         ]);
     }
 

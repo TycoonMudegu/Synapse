@@ -16,7 +16,8 @@ OUTPUT = ROOT / '.release'
 DIRECTORIES = ('App', 'Bootstrap', 'Public', 'Resources/Views', 'Routes', 'database', 'vendor')
 FILES = ('.htaccess', 'index.php', 'composer.json', 'composer.lock')
 SCRIPTS = ('cron.php', 'schedule.php', 'worker.php', 'migrate.php', 'db.php',
-           'configure-cloud-storage.php', 'configure-site.php', 'fuzu-browser.mjs', 'collect-fuzu.php', 'admin.php')
+           'configure-cloud-storage.php', 'configure-site.php', 'fuzu-browser.mjs', 'collect-fuzu.php',
+           'admin.php', 'create-admin.php')
 REQUIRED = ('vendor/autoload.php', 'Public/Assets/app.css', 'Public/Assets/alpine.js',
             'Public/Assets/lucide.js', 'Public/Assets/pdfjs/6.5.438/pdf.min.mjs',
             'Public/Assets/pdfjs/6.5.438/pdf.worker.min.mjs', 'Public/Assets/licenses/pdfjs.txt')

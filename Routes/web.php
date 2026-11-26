@@ -33,6 +33,7 @@ $router->add('POST', '/api/catalogue/{id}/save', [CatalogueController::class, 's
 $router->add('POST', '/api/collector/claim', [CollectorController::class, 'claim'], false);
 $router->add('POST', '/api/collector/batch', [CollectorController::class, 'batch'], false);
 $router->add('POST', '/api/collector/finish', [CollectorController::class, 'finish'], false);
+$router->add('GET', '/api/collector/status', [CollectorController::class, 'status'], false);
 
 $router->add('GET', '/register', [AuthController::class, 'showRegister'], false);
 $router->add('POST', '/register', [AuthController::class, 'register'], false);

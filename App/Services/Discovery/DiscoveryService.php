@@ -43,7 +43,7 @@ final class DiscoveryService
 
     public function run(int $userId): int
     {
-        if (\App\Core\Env::bool('COLLECTOR_ENABLED')) {
+        if (CatalogueDiscovery::enabled()) {
             return (new CatalogueDiscovery())->run($userId);
         }
         $settingsRepo = new SettingsRepository();

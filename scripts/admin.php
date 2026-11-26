@@ -20,7 +20,10 @@ if (!in_array($action, ['grant', 'revoke'], true) || !filter_var($email, FILTER_
 }
 $user = (new App\Repositories\UserRepository())->byEmail($email);
 if (!$user) {
-    fwrite(STDERR, "No existing account has that email. Register the account first.\n");
+    fwrite(
+        STDERR,
+        "No existing account has that email. Run php scripts/create-admin.php to create a new administrator.\n",
+    );
     exit(1);
 }
 $statement = App\Core\Database::connection()->prepare('UPDATE users SET is_admin = ? WHERE id = ?');

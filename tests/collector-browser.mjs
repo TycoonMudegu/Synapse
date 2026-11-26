@@ -17,7 +17,7 @@ const server = spawn('php', ['-S', '127.0.0.1:8861', '-t', 'Public', 'Public/rou
         SMTP_PASSWORD: '',
         DOCUMENT_RENDERER_URL: '',
         DOCUMENT_RENDERER_TOKEN: '',
-        COLLECTOR_ENABLED: 'false',
+        COLLECTOR_ENABLED: 'true',
         COLLECTOR_PROJECT: '',
         COLLECTOR_TOKEN: token,
         APP_URL: base,
@@ -26,7 +26,7 @@ const server = spawn('php', ['-S', '127.0.0.1:8861', '-t', 'Public', 'Public/rou
 });
 let browser;
 const failures = [];
-async function login(context, account) {
+async function login(context, account, destination = '/') {
     const page = await context.newPage();
     page.on('pageerror', (error) => failures.push(error.message));
     await page.goto(`${base}/login`);
@@ -36,7 +36,10 @@ async function login(context, account) {
         data: { email: account.email, password: fixture.password },
     });
     expect(response.status()).toBe(200);
-    await page.goto(`${base}/`);
+    const result = await response.json();
+    expect(result.redirect).toBe(destination);
+    await page.goto(`${base}${result.redirect}`);
+    await expect(page).toHaveURL(`${base}${destination}`);
     return page;
 }
 try {
@@ -52,9 +55,51 @@ try {
     });
     const admin = await browser.newContext({ viewport: { width: 1440, height: 1050 } });
     const user = await browser.newContext();
-    const page = await login(admin, fixture.accounts.admin);
+    const pending = await browser.newContext();
+    const page = await login(admin, fixture.accounts.admin, '/admin');
     const ordinary = await login(user, fixture.accounts.user);
-    await page.goto(`${base}/admin`);
+    const unfinished = await login(pending, fixture.accounts.new_user, '/onboarding');
+    for (const path of ['/', '/onboarding', '/login', '/register']) {
+        await page.goto(`${base}${path}`);
+        await expect(page).toHaveURL(`${base}/admin`);
+    }
+    console.log(
+        'PASS admins sign in directly to their portal and bypass setup on returning visits',
+    );
+    await unfinished.goto(`${base}/`);
+    await expect(unfinished).toHaveURL(`${base}/onboarding`);
+    console.log('PASS ordinary accounts retain their setup and completed-workspace destinations');
+
+    for (const javaScriptEnabled of [true, false]) {
+        const context = await browser.newContext({ javaScriptEnabled });
+        const signIn = await context.newPage();
+        signIn.on('pageerror', (error) => failures.push(error.message));
+        await signIn.goto(`${base}/login`);
+        await signIn
+            .getByLabel('Email address', { exact: true })
+            .fill(fixture.accounts.admin.email);
+        await signIn.getByRole('button', { name: 'Continue', exact: true }).click();
+        await expect(signIn.getByLabel('Password', { exact: true })).toBeVisible();
+        await signIn.getByLabel('Password', { exact: true }).fill(fixture.password);
+        await signIn.getByRole('button', { name: 'Continue', exact: true }).click();
+        await expect(signIn).toHaveURL(`${base}/admin`);
+        await expect(
+            signIn.getByRole('heading', { name: 'Administration', exact: true }),
+        ).toBeVisible();
+        await context.close();
+        console.log(
+            `PASS admin email-first sign-in skips setup with JavaScript ${javaScriptEnabled ? 'enabled' : 'disabled'}`,
+        );
+    }
+
+    execFileSync('php', ['tests/collector-fixtures.php', 'grant', fixture.tag]);
+    await unfinished.goto(`${base}/`);
+    await expect(unfinished).toHaveURL(`${base}/admin`);
+    execFileSync('php', ['tests/collector-fixtures.php', 'revoke', fixture.tag]);
+    await unfinished.goto(`${base}/admin`);
+    await expect(unfinished).toHaveURL(`${base}/onboarding`);
+    console.log('PASS role changes update portal access without completing job-seeker setup');
+
     await expect(page.getByRole('heading', { name: 'Administration', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Collect now', exact: true })).toBeDisabled();
     console.log(
@@ -74,7 +119,20 @@ try {
     expect((await admin.request.post(`${base}/api/admin/jobs`, { data: {} })).status()).toBe(403);
     console.log('PASS admin pages and mutations enforce roles and CSRF');
 
-    await page.getByRole('link', { name: 'Sources', exact: true }).click();
+    for (const label of ['My CV', 'My jobs', 'Applications', 'Documents', 'Plans & billing']) {
+        await expect(page.getByRole('link', { name: label, exact: true })).toHaveCount(0);
+    }
+    for (const path of ['/profile', '/documents', '/jobs', '/plans', '/settings']) {
+        await page.goto(`${base}${path}`);
+        await expect(page).toHaveURL(`${base}/admin`);
+    }
+    expect((await admin.request.post(`${base}/api/jobs`, { data: {} })).status()).toBe(403);
+    console.log('PASS admin navigation and direct routes contain only administration features');
+
+    await page
+        .getByRole('navigation', { name: 'Administration sections' })
+        .getByRole('link', { name: 'Sources', exact: true })
+        .click();
     await expect(
         page.getByRole('heading', { name: 'Collection sources', exact: true }),
     ).toBeVisible();
@@ -125,6 +183,7 @@ try {
         title: `Imported fixture ${fixture.tag}`,
         employer: `Collector browser ${fixture.tag}`,
         description: 'Test-only callback import.',
+        location: 'Kenya',
         original_url: `https://example.com/imported/${fixture.tag}`,
     };
     const batch = {
@@ -157,6 +216,32 @@ try {
     await expect(page.getByText('1 new · 0 refreshed', { exact: true })).toBeVisible();
     console.log(
         'PASS authenticated collector callbacks import, deduplicate and report authoritative counts',
+    );
+
+    expect((await fetch(`${base}/api/collector/status`)).status).toBe(401);
+    const health = await fetch(`${base}/api/collector/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    const healthBody = await health.json();
+    expect(healthBody.catalogue_enabled).toBe(true);
+    expect(JSON.stringify(healthBody)).not.toContain(token);
+    const userCsrf = await ordinary.locator('meta[name="csrf-token"]').getAttribute('content');
+    const search = await user.request.post(`${base}/api/automation/search`, {
+        headers: { 'X-CSRF-Token': userCsrf },
+        data: {},
+    });
+    expect(search.status()).toBe(200);
+    const searchBody = await search.json();
+    expect(searchBody.found).toBeGreaterThan(0);
+    expect(searchBody.task_id).toBeUndefined();
+    await ordinary.goto(`${base}/discover`);
+    await expect(
+        ordinary.getByText(`Imported fixture ${fixture.tag}`, { exact: true }),
+    ).toBeVisible();
+    await ordinary.goto(`${base}/settings?tab=discovery`);
+    await expect(ordinary.getByText('Advanced discovery settings', { exact: true })).toHaveCount(0);
+    console.log(
+        'PASS discovery saves newly collected jobs immediately without a queue worker or personal scraper setup',
     );
 
     await mkdir('tests/.runtime', { recursive: true });

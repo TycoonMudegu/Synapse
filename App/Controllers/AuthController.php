@@ -23,7 +23,7 @@ final class AuthController
     public function show(Request $request): void
     {
         if (Auth::user()) {
-            Response::redirect(empty(Auth::user()['onboarded_at']) ? '/onboarding' : '/');
+            Response::redirect(Auth::landingPath());
         }
         unset($_SESSION['auth_flow']);
         View::render('auth/login', ['title' => 'Welcome to Synapse'], 'guest');
@@ -109,7 +109,7 @@ final class AuthController
     private function finished(Request $request): never
     {
         unset($_SESSION['auth_flow']);
-        $redirect = empty(Auth::user()['onboarded_at']) ? '/onboarding' : '/';
+        $redirect = Auth::landingPath();
         if ($request->wantsJson()) {
             Response::json(['ok' => true, 'redirect' => $redirect]);
         }
@@ -135,7 +135,7 @@ final class AuthController
     public function showRegister(Request $request): void
     {
         if (Auth::user()) {
-            Response::redirect(empty(Auth::user()['onboarded_at']) ? '/onboarding' : '/');
+            Response::redirect(Auth::landingPath());
         }
         Response::redirect('/login');
     }
@@ -203,7 +203,7 @@ final class AuthController
         try {
             $id = (new \App\Services\Security\GoogleSignIn())->callback($_GET);
             Auth::establish($id);
-            Response::redirect(empty(Auth::user()['onboarded_at']) ? '/onboarding' : '/');
+            Response::redirect(Auth::landingPath());
         } catch (\App\Core\HttpException $exception) {
             View::render(
                 'auth/login',
