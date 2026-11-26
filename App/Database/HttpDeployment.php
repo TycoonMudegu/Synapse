@@ -49,7 +49,12 @@ final class HttpDeployment
                 !preg_match('/^[a-f0-9]{40}$/', $request['release'] ?? '') ||
                 !preg_match('/^[a-f0-9]{64}$/', $request['package'] ?? '') ||
                 !is_bool($request['retry_failed'] ?? false) ||
-                !is_bool($request['backup_window_override'] ?? false)
+                !is_bool($request['backup_window_override'] ?? false) ||
+                !in_array(
+                    $request['backup_mode'] ?? 'hosting-daily',
+                    ['hosting-daily', 'deployment-snapshot'],
+                    true,
+                )
             ) {
                 return self::response(400, ['error' => 'Invalid deployment request.']);
             }
@@ -102,6 +107,7 @@ final class HttpDeployment
                 // A new, unpublished empty database has no user data to back up.
                 // Once any account exists, normal backup requirements apply.
                 $initial = $initial && !$runner->hasUsers();
+                $snapshotMode = ($request['backup_mode'] ?? '') === 'deployment-snapshot';
                 $backup = $initial
                     ? [
                         'open' => true,
@@ -109,7 +115,15 @@ final class HttpDeployment
                         'message' => 'Initial empty-database installation.',
                         'provider_completion_verified' => false,
                     ]
-                    : self::backupWindow($env);
+                    : ($snapshotMode
+                        ? [
+                            'open' => true,
+                            'reason' => 'deployment_snapshot',
+                            'message' =>
+                                'A private database snapshot must complete before migration starts.',
+                            'provider_completion_verified' => false,
+                        ]
+                        : self::backupWindow($env));
                 // Only an explicitly signed request can bypass the schedule.
                 // Invalid hosting configuration and failed-migration review
                 // remain separate gates. Provider backup success is not assumed.
@@ -160,12 +174,21 @@ final class HttpDeployment
                         'backup_window' => $backup,
                     ]);
                 }
+                $snapshot =
+                    $snapshotMode && !$initial
+                        ? Snapshot::create(
+                            $runner->db,
+                            dirname($root, 2) . '/backups',
+                            $request['release'],
+                        )
+                        : null;
                 $state = [
                     'release' => $request['release'],
                     'attempt' => $history['pending'][0],
                     'started_at' => gmdate('c'),
                     'backup_policy' => $backup,
                     'initial_install' => $initial,
+                    'database_snapshot' => $snapshot,
                 ];
                 if ($override) {
                     $state['backup_window_override'] = [

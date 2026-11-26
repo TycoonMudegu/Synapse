@@ -100,6 +100,7 @@ class DeploymentTests(unittest.TestCase):
         ]) as call:
             deploy.run()
             self.assertEqual([entry.args[2]['action'] for entry in call.call_args_list], ['status', 'step', 'status'])
+            self.assertTrue(all(entry.args[2]['backup_mode'] == 'deployment-snapshot' for entry in call.call_args_list))
 
     def test_timeout_after_step_reads_status_instead_of_blind_repeat(self):
         with patch.object(deploy, 'call_endpoint', side_effect=[

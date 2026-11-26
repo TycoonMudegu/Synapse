@@ -28,6 +28,7 @@ $server = new PDO('mysql:' . $address . ';charset=utf8mb4', $config['user'], $co
 ]);
 $name = 'synapse_migration_' . bin2hex(random_bytes(5)) . '_test';
 $httpName = 'synapse_http_' . bin2hex(random_bytes(5)) . '_test';
+$restoreName = 'synapse_restore_' . bin2hex(random_bytes(5)) . '_test';
 $temporary = sys_get_temp_dir() . '/synapse-migrations-' . bin2hex(random_bytes(6));
 mkdir($temporary, 0700);
 $passed = 0;
@@ -86,7 +87,7 @@ function sql_value(PDO $db, string $sql): mixed
 }
 
 try {
-    foreach ([$name, $httpName] as $database) {
+    foreach ([$name, $httpName, $restoreName] as $database) {
         ensure(
             (bool) preg_match('/^synapse_[a-z0-9_]+_test$/D', $database),
             'Test database name rejected.',
@@ -204,7 +205,7 @@ try {
         $envFile,
         $secret,
         $release,
-        $packageHash,
+        &$packageHash,
     ): array {
         $body = json_encode(
             ['action' => $action, 'release' => $release, 'package' => $packageHash] + $extra,
@@ -264,6 +265,132 @@ try {
             count($httpRunner->history()['applied']) === $migrationCount,
         'HTTP installation incomplete.',
     );
+
+    $httpRunner->db->exec(
+        "INSERT INTO users (name,email,password_hash) VALUES ('Snapshot fixture','snapshot@example.test','fixture')",
+    );
+    $httpRunner->db->exec(
+        'CREATE TABLE backup_fixture (id INT AUTO_INCREMENT PRIMARY KEY, body TEXT, payload VARBINARY(32), amount DECIMAL(12,4), optional_value TEXT NULL, document JSON, source_value INT, computed_value INT GENERATED ALWAYS AS (source_value * 2) STORED) ENGINE=InnoDB',
+    );
+    $text = "Quoted 'text'; backslash \\ and emoji 🌍\nsecond line";
+    $binary = "\0\xff\x80'\\;\n";
+    $insert = $httpRunner->db->prepare(
+        'INSERT INTO backup_fixture (body,payload,amount,optional_value,document,source_value) VALUES (?,?,?,NULL,?,7)',
+    );
+    $insert->execute([
+        $text,
+        $binary,
+        '12.3400',
+        json_encode(['name' => 'Mũdegu 🌍'], JSON_THROW_ON_ERROR),
+    ]);
+    $snapshotMigration = sprintf('%03d_snapshot_fixture.sql', $migrationCount + 1);
+    $snapshotSQL = 'ALTER TABLE users ADD snapshot_fixture_column INT NULL;';
+    file_put_contents($package . '/database/migrations/' . $snapshotMigration, $snapshotSQL);
+    $files['database/migrations/' . $snapshotMigration] = hash('sha256', $snapshotSQL);
+    file_put_contents(
+        $package . '/manifest.json',
+        json_encode(
+            ['release' => $release, 'files' => $files, 'access_rules' => hash('sha256', $rules)],
+            JSON_THROW_ON_ERROR,
+        ),
+    );
+    $packageHash = hash_file('sha256', $package . '/manifest.json');
+    ensure(
+        !$request('status')['body']['backup_window_open'],
+        'Missing hosting schedule was accepted by legacy mode.',
+    );
+    $snapshotDirectory = dirname($package, 2) . '/backups';
+    ensure(
+        $request('status', ['backup_mode' => 'deployment-snapshot'])['body'][
+            'backup_window_open'
+        ] && !is_dir($snapshotDirectory),
+        'Snapshot readiness should not create a backup or modify the database.',
+    );
+    ensure(
+        $request('status', ['backup_mode' => 'unknown'])['code'] === 400,
+        'Invalid backup mode was accepted.',
+    );
+    file_put_contents($snapshotDirectory, 'Not a writable snapshot directory');
+    ensure(
+        $request('step', ['backup_mode' => 'deployment-snapshot'])['code'] === 500 &&
+            $httpRunner->db
+                ->query("SHOW COLUMNS FROM users LIKE 'snapshot_fixture_column'")
+                ->fetch() === false,
+        'Migration ran without a completed database snapshot.',
+    );
+    unlink($snapshotDirectory);
+    $response = $request('step', ['backup_mode' => 'deployment-snapshot']);
+    ensure(
+        $response['code'] === 200 && $response['body']['status'] === 'complete',
+        'Snapshot-backed deployment failed: ' . json_encode($response),
+    );
+    $state = json_decode(
+        file_get_contents(dirname($package, 2) . '/deployment-state.json'),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    $snapshot = $state['database_snapshot'];
+    $snapshotPath = $snapshotDirectory . '/' . $snapshot['file'];
+    ensure(
+        is_file($snapshotPath) &&
+            file_get_contents($snapshotDirectory . '/.htaccess') === "Require all denied\n" &&
+            (fileperms($snapshotPath) & 0777) === 0600,
+        'Database snapshot was not saved privately.',
+    );
+    $dump = gzdecode(file_get_contents($snapshotPath));
+    ensure(
+        hash_equals($snapshot['sql_sha256'], hash('sha256', $dump)) &&
+            hash_equals($snapshot['sha256'], hash_file('sha256', $snapshotPath)),
+        'Database snapshot integrity verification failed.',
+    );
+    ensure(
+        App\Database\Snapshot::create($httpRunner->db, $snapshotDirectory, $release) === $snapshot,
+        'A repeated deployment did not reuse its completed snapshot.',
+    );
+    $restore = new PDO(
+        'mysql:' . $address . ';dbname=' . $restoreName . ';charset=utf8mb4',
+        $config['user'],
+        $config['pass'],
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ],
+    );
+    foreach (Sql::split($dump) as $statement) {
+        $restore->exec($statement);
+    }
+    ensure(
+        sql_value($restore, "SELECT name FROM users WHERE email='snapshot@example.test'") ===
+            'Snapshot fixture' &&
+            $restore->query("SHOW COLUMNS FROM users LIKE 'snapshot_fixture_column'")->fetch() ===
+                false,
+        'Restored snapshot did not preserve the pre-migration schema and account.',
+    );
+    $restored = $restore->query('SELECT * FROM backup_fixture')->fetch();
+    ensure(
+        $restored['body'] === $text &&
+            $restored['payload'] === $binary &&
+            $restored['amount'] === '12.3400' &&
+            $restored['optional_value'] === null &&
+            (int) $restored['computed_value'] === 14 &&
+            json_decode($restored['document'], true)['name'] === 'Mũdegu 🌍',
+        'Snapshot restoration changed text, binary, decimal, JSON, null or generated values.',
+    );
+    file_put_contents($snapshotPath, 'changed', FILE_APPEND);
+    denied(
+        fn() => App\Database\Snapshot::create($httpRunner->db, $snapshotDirectory, $release),
+        'changed',
+    );
+    $httpRunner->db->exec('CREATE VIEW unsupported_backup_view AS SELECT id FROM users');
+    denied(
+        fn() => App\Database\Snapshot::create(
+            $httpRunner->db,
+            $snapshotDirectory,
+            str_repeat('d', 40),
+        ),
+        'native database backup',
+    );
+    $httpRunner->db->exec('DROP VIEW unsupported_backup_view');
     file_put_contents($package . '/database/migrations/999_unmanifested.sql', 'SELECT 1;');
     ensure($request('status')['code'] === 500, 'Unmanifested SQL accepted.');
     unlink($package . '/database/migrations/999_unmanifested.sql');
@@ -325,7 +452,7 @@ try {
     );
     echo $passed . ' deployment database checks passed.' . PHP_EOL;
 } finally {
-    foreach ([$name, $httpName] as $database) {
+    foreach ([$name, $httpName, $restoreName] as $database) {
         $server->exec('DROP DATABASE IF EXISTS `' . $database . '`');
     }
     remove_tree($temporary);
