@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
 spec = importlib.util.spec_from_file_location('configure_collector', Path(__file__).resolve().parent.parent / 'scripts/configure_collector.py')
 collector = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(collector)
+import configure_backup_window as backup_window
 
 
 class CollectorConfigurationTests(unittest.TestCase):
@@ -73,6 +74,23 @@ class CollectorConfigurationTests(unittest.TestCase):
         with patch.dict(os.environ, {'COLLECTOR_TOKEN': ''}), patch.object(collector, 'configure_host') as configure:
             collector.run()
             configure.assert_not_called()
+
+    def test_backup_time_requires_a_real_utc_clock_value_before_connecting(self):
+        for value in ['24:00', '12:60', '12:00\n', '00:00\nCOLLECTOR_TOKEN=invalid']:
+            with self.subTest(value=value), patch.dict(os.environ, {'DB_DEPLOY_BACKUP_UTC': value}), patch.object(backup_window, 'configure_host') as configure:
+                with self.assertRaises(ValueError): backup_window.run()
+                configure.assert_not_called()
+
+    def test_missing_backup_time_preserves_the_hosting_policy(self):
+        with patch.dict(os.environ, {'DB_DEPLOY_BACKUP_UTC': ''}), patch.object(backup_window, 'configure_host') as configure:
+            backup_window.run()
+            configure.assert_not_called()
+
+    def test_backup_configuration_changes_only_the_supplied_schedule(self):
+        with patch.dict(os.environ, {'DB_DEPLOY_BACKUP_UTC': '01:30'}), patch.object(backup_window, 'configuration'), patch.object(backup_window, 'settings', return_value=('release', 'https://example.test', 'private')), patch.object(backup_window, 'verify_env_protection') as protection, patch.object(backup_window, 'configure_host') as configure:
+            backup_window.run()
+            protection.assert_called_once_with('https://example.test')
+            configure.assert_called_once_with({'DB_DEPLOY_BACKUP_UTC': '01:30'})
 
 
 if __name__ == '__main__':
