@@ -1,0 +1,37 @@
+name: Configure Synapse collector
+
+on:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: synapse-production
+    cancel-in-progress: false
+
+jobs:
+    configure:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        environment: production
+        steps:
+            - uses: actions/checkout@v6
+            - name: Configure and verify collector callbacks
+              env:
+                  DB_DEPLOY_RELEASE: ${{ github.sha }}
+                  DB_DEPLOY_BASE_URL: ${{ vars.DB_DEPLOY_BASE_URL || secrets.DB_DEPLOY_BASE_URL || 'https://jobflow.mystuffs.co.ke' }}
+                  DB_DEPLOY_SECRET: ${{ secrets.DB_DEPLOY_SECRET }}
+                  FTP_SERVER_DIR: /domains/jobflow.mystuffs.co.ke/public_html/
+                  FTP_PROTOCOL: ${{ vars.FTP_PROTOCOL || secrets.FTP_PROTOCOL || 'ftps' }}
+                  FTP_SERVER: ${{ secrets.FTP_SERVER }}
+                  FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+                  FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+                  FTP_PORT: ${{ vars.FTP_PORT || secrets.FTP_PORT || '21' }}
+                  COLLECTOR_PROJECT: ${{ vars.COLLECTOR_PROJECT }}
+                  COLLECTOR_REGION: ${{ vars.COLLECTOR_REGION }}
+                  COLLECTOR_JOB: ${{ vars.COLLECTOR_JOB }}
+                  COLLECTOR_TOKEN: ${{ secrets.COLLECTOR_TOKEN }}
+              run: |
+                  : "${COLLECTOR_TOKEN:?Set the production COLLECTOR_TOKEN secret}"
+                  python3 scripts/configure_collector.py
