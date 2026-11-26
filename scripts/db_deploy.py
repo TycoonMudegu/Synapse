@@ -327,6 +327,10 @@ def run_migrations(report):
         raise RuntimeError('Migration package contains no versioned migrations.')
     payload = {'release': release, 'package': hashlib.sha256(raw).hexdigest(),
                'retry_failed': os.environ.get('DB_DEPLOY_RETRY_FAILED', 'false') == 'true'}
+    backup_mode = os.environ.get('DB_DEPLOY_BACKUP_MODE', 'deployment-snapshot')
+    if backup_mode not in ('hosting-daily', 'deployment-snapshot'):
+        raise ValueError('DB_DEPLOY_BACKUP_MODE must be hosting-daily or deployment-snapshot.')
+    payload['backup_mode'] = backup_mode
     override = os.environ.get('DB_DEPLOY_BACKUP_WINDOW_OVERRIDE', 'false')
     if override not in ('true', 'false'):
         raise ValueError('DB_DEPLOY_BACKUP_WINDOW_OVERRIDE must be true or false.')

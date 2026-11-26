@@ -33,7 +33,9 @@ The [Actions workflow](../.github/workflows/deploy.yml) stages an isolated, rele
 
 Shared state and diagnostic logs live under `_db-deploy/`, protected by Apache rules. Keep this directory private and writable by the hosting PHP account. Do not delete it to bypass a failed migration. The endpoint reports safe schema identifiers and database error codes to Actions; detailed errors stay in the protected hosting log.
 
-New empty databases may install without a previous backup. Once installed, pending schema changes require the configured hosting backup window:
+New empty databases may install without a previous backup. For installed databases, the deployment client defaults to `deployment-snapshot`: the authenticated endpoint writes a consistent, compressed SQL snapshot under the private `_db-deploy/backups/` directory before any pending DDL. It reads the snapshot back and verifies integrity, records its checksum and reuses it across that release's migration steps. Backup failure or corruption blocks DDL. Restoration is manual; application files are uploaded only after migrations and schema verification succeed. This supports Synapse's InnoDB schema, including binary and generated columns, without a hosting-managed backup service or a shell executable. Views, triggers, routines, events and non-InnoDB tables require a native backup instead. Snapshots are limited to 128 MiB uncompressed and a bounded execution time.
+
+Keep the deployment directory private and writable, and retain its snapshots with your private `APP_KEY` and environment backup. Nothing is sent to Actions except safe deployment metadata. For an operator who actually uses hosting backups, `DB_DEPLOY_BACKUP_MODE=hosting-daily` on the deployment client retains the previous schedule policy with these hosting values:
 
 ```dotenv
 DB_DEPLOY_BACKUP_POLICY=hosting-daily
@@ -41,7 +43,7 @@ DB_DEPLOY_BACKUP_UTC=HH:MM
 DB_DEPLOY_BACKUP_MAX_AGE_HOURS=4
 ```
 
-Replace `HH:MM` with the actual UTC time from the hosting backup configuration, and confirm successful backups in the hosting panel. This schedule is an operator-selected deployment window, not evidence that a provider backup succeeded. A normal push cannot bypass it. A manual emergency override requires a reason and is recorded privately; it bypasses only an otherwise valid schedule's time window. Failed-migration review and schema verification remain required.
+Replace `HH:MM` with the actual UTC time from the hosting backup configuration, and confirm successful backups in the hosting panel. This optional legacy schedule is not evidence that a provider backup succeeded. Its manual emergency override requires a reason and bypasses only an otherwise valid schedule's time window. Failed-migration review and schema verification remain required in both modes.
 
 ## Verification
 

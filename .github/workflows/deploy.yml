@@ -82,14 +82,6 @@ jobs:
                   state-name: .ftp-migration-${{ github.sha }}.json
                   dangerous-clean-slate: false
                   log-level: verbose
-            - name: Configure the operator-supplied hosting backup time
-              env:
-                  FTP_SERVER: ${{ secrets.FTP_SERVER }}
-                  FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-                  FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-                  FTP_PORT: ${{ vars.FTP_PORT || secrets.FTP_PORT || '21' }}
-                  DB_DEPLOY_BACKUP_UTC: ${{ vars.DB_DEPLOY_BACKUP_UTC }}
-              run: python3 scripts/configure_backup_window.py
             - name: Apply migrations and verify the release schema
               id: migrations
               env:
