@@ -42,6 +42,14 @@ final class Worker
             return true;
         }
         try {
+            if (
+                \App\Services\Security\Admin::allowed(
+                    (new \App\Repositories\UserRepository())->byId($userId),
+                )
+            ) {
+                $queue->complete($task);
+                return true;
+            }
             $settings = (new SettingsRepository())->get($userId, 'automation');
             if (
                 $settings['paused'] &&

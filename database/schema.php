@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 // Current release contract: schema identifiers only, never application records.
-return [
+$contract = [
     'tables' => [
         'activity_logs' => [
             0 => 'id',
@@ -651,3 +651,68 @@ return [
         ],
     ],
 ];
+
+$contract['tables']['users'][] = 'is_admin';
+$contract['tables']['job_listings'][] = 'catalogue_job_id';
+$contract['tables']['collector_sources'] = [
+    'id',
+    'source_key',
+    'name',
+    'adapter',
+    'url',
+    'config_json',
+    'enabled',
+    'permission_confirmed',
+    'max_jobs',
+    'health',
+    'last_checked_at',
+    'last_success_at',
+    'last_error',
+    'created_at',
+    'updated_at',
+];
+$contract['tables']['shared_jobs'] = [
+    'id',
+    'source_id',
+    'job_json',
+    'canonical_hash',
+    'fingerprint',
+    'published',
+    'editor_locked',
+    'revision',
+    'last_seen_at',
+    'created_at',
+    'updated_at',
+];
+$contract['tables']['collector_runs'] = [
+    'id',
+    'run_key',
+    'requested_by',
+    'source_id',
+    'status',
+    'execution_name',
+    'sources_json',
+    'results_json',
+    'inserted_count',
+    'updated_count',
+    'error_summary',
+    'created_at',
+    'started_at',
+    'completed_at',
+];
+$contract['tables']['collector_batches'] = [
+    'id',
+    'run_id',
+    'source_id',
+    'batch_key',
+    'payload_hash',
+    'record_count',
+    'inserted_count',
+    'updated_count',
+    'created_at',
+];
+$contract['unique_indexes']['collector_sources'] = [['id'], ['source_key']];
+$contract['unique_indexes']['shared_jobs'] = [['id'], ['canonical_hash'], ['fingerprint']];
+$contract['unique_indexes']['collector_runs'] = [['id'], ['run_key']];
+$contract['unique_indexes']['collector_batches'] = [['id'], ['run_id', 'source_id', 'batch_key']];
+return $contract;

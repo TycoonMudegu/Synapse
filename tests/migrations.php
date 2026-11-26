@@ -10,6 +10,7 @@ use App\Database\Runner;
 use App\Database\Sql;
 
 $root = dirname(__DIR__);
+$migrationCount = count(glob($root . '/database/migrations/*.sql'));
 $socket = getenv('DB_SOCKET') ?: '';
 $config = [
     'host' => getenv('DB_HOST') ?: '127.0.0.1',
@@ -96,7 +97,8 @@ try {
     $config['name'] = $name;
     $runner = new Runner($temporary, $config);
     ensure(
-        $runner->history()['applied'] === [] && count($runner->history()['pending']) === 11,
+        $runner->history()['applied'] === [] &&
+            count($runner->history()['pending']) === $migrationCount,
         'Fresh history incorrect.',
     );
     ensure(
@@ -111,7 +113,10 @@ try {
             $history = $runner->next();
         } while ($history['pending']);
     });
-    ensure(count($runner->history()['applied']) === 11, 'Clean SQL installation incomplete.');
+    ensure(
+        count($runner->history()['applied']) === $migrationCount,
+        'Clean SQL installation incomplete.',
+    );
     $runner->check();
     ensure(
         (int) sql_value($runner->db, 'SELECT COUNT(*) FROM promo_codes') === 1,
@@ -133,7 +138,8 @@ try {
     $runner->db->exec('DROP TABLE deployment_migration_files');
     $runner->locked(fn() => $runner->next());
     ensure(
-        (int) sql_value($runner->db, 'SELECT COUNT(*) FROM deployment_migration_files') === 11,
+        (int) sql_value($runner->db, 'SELECT COUNT(*) FROM deployment_migration_files') ===
+            $migrationCount,
         'Legacy history was not adopted.',
     );
     ensure(
@@ -246,7 +252,7 @@ try {
     );
     $httpRunner = new Runner($package, $httpConfig);
     ensure($httpRunner->isEmpty(), 'Authenticated status modified the database.');
-    for ($i = 0; $i < 11; $i++) {
+    for ($i = 0; $i < $migrationCount; $i++) {
         $response = $request('step');
         ensure(
             $response['code'] === 200,
@@ -255,7 +261,7 @@ try {
     }
     ensure(
         $request('status')['body']['status'] === 'complete' &&
-            count($httpRunner->history()['applied']) === 11,
+            count($httpRunner->history()['applied']) === $migrationCount,
         'HTTP installation incomplete.',
     );
     file_put_contents($package . '/database/migrations/999_unmanifested.sql', 'SELECT 1;');
@@ -268,22 +274,23 @@ try {
         'ALTER TABLE users ADD deployment_fixture VARCHAR(30) NULL;' .
         "\n" .
         'ALTER TABLE users ADD deployment_fixture_two INT NULL;';
-    $fixturePath = $temporary . '/database/migrations/012_retry_fixture.sql';
+    $fixtureName = sprintf('%03d_retry_fixture.sql', $migrationCount + 1);
+    $fixturePath = $temporary . '/database/migrations/' . $fixtureName;
     file_put_contents($fixturePath, $fixture);
     $query = $runner->db->prepare(
         'INSERT INTO deployment_migration_files (name,sha256) VALUES (?,?)',
     );
-    $query->execute(['012_retry_fixture.sql', hash('sha256', $fixture)]);
+    $query->execute([$fixtureName, hash('sha256', $fixture)]);
     $first = Sql::split($fixture)[0];
     $query = $runner->db->prepare(
         "INSERT INTO deployment_migration_steps (migration,statement_no,sha256,status) VALUES (?,0,?,'running')",
     );
-    $query->execute(['012_retry_fixture.sql', hash('sha256', $first)]);
+    $query->execute([$fixtureName, hash('sha256', $first)]);
     $runner->db->exec($first);
     denied(fn() => $runner->locked(fn() => $runner->next()), 'explicit retry-failed');
     $runner->locked(fn() => $runner->next(true));
     ensure(
-        in_array('012_retry_fixture.sql', $runner->history()['applied'], true),
+        in_array($fixtureName, $runner->history()['applied'], true),
         'Interrupted additive DDL did not resume.',
     );
     ensure(

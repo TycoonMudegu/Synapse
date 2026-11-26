@@ -8,6 +8,15 @@ if (!defined('BASE_PATH')) {
     define('BASE_PATH', dirname(__DIR__));
 }
 require BASE_PATH . '/vendor/autoload.php';
+// Application classes ship independently of the hosting vendor archive's optimized class map.
+spl_autoload_register(static function (string $class): void {
+    if (preg_match('/^App\\\\[A-Za-z_][A-Za-z0-9_\\\\]*$/D', $class)) {
+        $path = BASE_PATH . '/' . str_replace('\\', '/', $class) . '.php';
+        if (is_file($path)) {
+            require $path;
+        }
+    }
+});
 Env::load(BASE_PATH . '/.env');
 if (!defined('CSP_NONCE')) {
     define('CSP_NONCE', base64_encode(random_bytes(24)));

@@ -26,6 +26,7 @@ final class JobService
                 'responsibilities' => 20000,
                 'qualifications' => 10000,
                 'location' => 200,
+                'industry' => 250,
                 'instructions' => 20000,
                 'email_subject' => 250,
             ]

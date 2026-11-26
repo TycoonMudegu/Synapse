@@ -16,6 +16,9 @@ putenv('GEMINI_API_KEY=');
 putenv('SMTP_PASSWORD=');
 putenv('DOCUMENT_RENDERER_URL=');
 putenv('DOCUMENT_RENDERER_TOKEN=');
+putenv('COLLECTOR_ENABLED=false');
+putenv('COLLECTOR_TOKEN=');
+putenv('COLLECTOR_PROJECT=');
 // Never let ordinary fixtures upload documents to the owner's real bucket.
 putenv('DOCUMENT_STORAGE=' . (getenv('JOBFLOW_TEST_STORAGE') ?: 'local'));
 require BASE_PATH . '/Bootstrap/App.php';

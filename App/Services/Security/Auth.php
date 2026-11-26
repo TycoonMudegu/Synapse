@@ -45,6 +45,18 @@ final class Auth
         return (int) (self::user()['id'] ?? throw new HttpException('Please sign in.', 401));
     }
 
+    public static function landingPath(): string
+    {
+        $user = self::user();
+        if ($user === null) {
+            return '/login';
+        }
+        if (Admin::allowed($user)) {
+            return '/admin';
+        }
+        return empty($user['onboarded_at']) ? '/onboarding' : '/';
+    }
+
     public static function login(string $email, string $password, bool $remember): bool
     {
         $users = new UserRepository();

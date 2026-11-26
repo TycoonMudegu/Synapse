@@ -14,6 +14,26 @@ use App\Controllers\ProfileController;
 use App\Controllers\SettingsController;
 use App\Controllers\OnboardingController;
 use App\Controllers\BillingController;
+use App\Controllers\AdminController;
+use App\Controllers\CatalogueController;
+use App\Controllers\CollectorController;
+
+$router->add('GET', '/admin', [AdminController::class, 'index']);
+$router->add('GET', '/admin/jobs/add', [AdminController::class, 'editor']);
+$router->add('GET', '/admin/jobs/{id}/edit', [AdminController::class, 'editor']);
+$router->add('POST', '/api/admin/jobs', [AdminController::class, 'saveJob']);
+$router->add('POST', '/api/admin/jobs/{id}', [AdminController::class, 'saveJob']);
+$router->add('POST', '/api/admin/jobs/{id}/publish', [AdminController::class, 'publish']);
+$router->add('POST', '/api/admin/sources', [AdminController::class, 'saveSource']);
+$router->add('POST', '/api/admin/sources/{id}', [AdminController::class, 'saveSource']);
+$router->add('POST', '/api/admin/collect', [AdminController::class, 'collect']);
+$router->add('GET', '/catalogue', [CatalogueController::class, 'index']);
+$router->add('GET', '/catalogue/{id}', [CatalogueController::class, 'show']);
+$router->add('POST', '/api/catalogue/{id}/save', [CatalogueController::class, 'save']);
+$router->add('POST', '/api/collector/claim', [CollectorController::class, 'claim'], false);
+$router->add('POST', '/api/collector/batch', [CollectorController::class, 'batch'], false);
+$router->add('POST', '/api/collector/finish', [CollectorController::class, 'finish'], false);
+$router->add('GET', '/api/collector/status', [CollectorController::class, 'status'], false);
 
 $router->add('GET', '/register', [AuthController::class, 'showRegister'], false);
 $router->add('POST', '/register', [AuthController::class, 'register'], false);

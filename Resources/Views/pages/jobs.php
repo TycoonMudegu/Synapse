@@ -5,10 +5,11 @@
         <p><?= $active === 'discover' ? 'Thoughtful discovery. A better fit for your next move.' : 'Save the possibilities. Focus on the ones that feel right.'; ?></p>
     </div>
     <div class="heading-actions">
+        <?php if ($active === 'discover'): ?><a class="btn" href="<?= e(app_url('/catalogue')); ?>"><?= icon('library'); ?>Browse catalogue</a><?php endif; ?>
         <?php if (
     $active === 'discover'
 ): ?>
-        <button class="btn" x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/automation/search" data-loading="Queuing discovery…">
+        <button class="btn" x-data="actionButton" x-on:click.prevent="run" data-action="<?= e(app_base_path()); ?>/api/automation/search" data-loading="Searching opportunities…">
             <?= icon('refresh-cw'); ?>Search now
         </button>
         <?php endif; ?>
@@ -25,7 +26,11 @@
             </div>
         </div>
     <?php endif; ?>
+    <?php if (\App\Services\Discovery\CatalogueDiscovery::enabled()): ?>
+    <div class="notice"><div><strong>Search the shared catalogue</strong><p>Your search preferences are applied to the vacancies collected by Synapse.</p><a class="text-link" href="<?= e(app_url('/settings?tab=discovery')); ?>">Edit my search</a></div></div>
+    <?php else: ?>
     <div class="notice"><div><strong>Your job sites</strong><p><?= e(implode(', ', array_column(array_filter($sources, fn($source) => $source['enabled']), 'name')) ?: 'Choose a job site to start discovering opportunities.'); ?></p><a class="text-link" href="<?= e(app_url('/settings?tab=discovery')); ?>">Edit my search</a></div></div>
+    <?php endif; ?>
 <?php endif; ?>
 <section class="panel">
     <div class="toolbar">

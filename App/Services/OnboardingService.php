@@ -99,6 +99,9 @@ final class OnboardingService
         }
         $location = Validator::text($input['location'] ?? 'Kenya', 'location', 200, true);
         $keys = $input['sources'] ?? [];
+        if (\App\Services\Discovery\CatalogueDiscovery::enabled()) {
+            $keys = [];
+        }
         if (!is_array($keys) || !array_is_list($keys) || count($keys) > 7) {
             throw new HttpException('Choose valid job sites.');
         }
