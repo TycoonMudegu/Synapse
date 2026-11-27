@@ -27,7 +27,7 @@ Set the following in the PHP host's private environment, never browser JavaScrip
 ```dotenv
 COLLECTOR_ENABLED=true
 COLLECTOR_PROJECT=your-project
-COLLECTOR_REGION=us-central1
+COLLECTOR_REGION=africa-south1
 COLLECTOR_JOB=synapse-job-collector
 COLLECTOR_TOKEN=the-same-private-random-token-as-the-collector
 COLLECTOR_MAX_DAILY_RUNS=4
@@ -36,6 +36,8 @@ COLLECTOR_MAX_DAILY_RUNS=4
 Use at least 32 non-whitespace characters for the shared token; 32 random bytes encoded as 64 hexadecimal characters is recommended. The existing `GOOGLE_APPLICATION_CREDENTIALS` mechanism supplies the PHP host's Google service identity. Grant that identity `roles/run.jobsExecutorWithOverrides` on this job only, using `ADMIN_INVOKER_EMAIL` during collector deployment. Do not commit service-account files or hand their contents to the collector. Workload Identity Federation is also supported by Google's Application Default Credentials library.
 
 Deploy from the collector repository after the callback API is reachable. Its script sets one task, parallelism one, no automatic task retries and a 20-minute hard timeout. The scheduler calls the job at `0 7 * * *` in `Africa/Nairobi`; the admin calls the same job with a reserved run ID. A job has no always-running HTTP service.
+
+The collector defaults to Johannesburg (`REGION=africa-south1`). Cloud Scheduler uses a separate supported location (`SCHEDULER_REGION=us-central1`) and targets the Johannesburg job. The PHP host's `COLLECTOR_REGION` must match the collector region so manual executions use the same job as the daily schedule.
 
 Shared discovery is the default. Search now applies role/location/salary/expiry preferences and personal daily limits to the stored catalogue immediately, without visiting job sites or waiting for a queue worker. Searches use keyset pagination, exclude already saved jobs and continue beyond the former 600-listing cutoff. A per-user lock prevents concurrent searches from exceeding personal allowances. Client setup and preferences no longer require configuring personal scrapers. Set `COLLECTOR_ENABLED=false` explicitly to retain legacy per-account collection. Gmail synchronisation and application workers keep their existing schedules. Central discovery does not process legacy email-alert source queues.
 
